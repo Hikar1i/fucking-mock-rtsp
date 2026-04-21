@@ -1,0 +1,32 @@
+server:
+  rtsp_port: 8554
+  web_port: 8080
+  host: "0.0.0.0"
+
+webcam:
+  enabled: true
+  device_id: 0
+  width: 1280
+  height: 720
+  fps: 25
+  rtsp_path: "/webcam"
+
+video:
+  enabled: true
+  default_file: ""
+  videos_dir: "videos"
+  loop: true
+  width: 1280
+  height: 720
+  fps: 25
+  rtsp_path: "/video"
+
+mediamtx:
+  bin_dir: "bin"
+  version: "v1.9.1"
+  download_timeout: 60
+
+encoding:
+  encoder: "auto"
+  bitrate: "2M"
+  preset: "ultrafast"

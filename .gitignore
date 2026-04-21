@@ -3,6 +3,9 @@ videos/
 images/
 tmp/
 bak/
+bin/
+.venv/
+uv.lock
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -66,7 +69,7 @@ output/
 *.pot
 
 # Django stuff:
-*.log
+
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
@@ -174,7 +177,6 @@ cython_debug/
 
 # Project specific ignores
 logs/
-*.log
 
 
 # Build artifacts

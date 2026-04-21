@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Local Mock RTSP Monitor</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: #f1f5f9;
+  color: #1e293b;
+  min-height: 100vh;
+  padding: 18px 20px 40px;
+}
+h1 {
+  font-size: 1.35rem; font-weight: 700; color: #1e293b;
+  letter-spacing: 0.04em; margin-bottom: 18px;
+  display: flex; align-items: center; gap: 10px;
+}
+h1 .dot { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; display: inline-block; }
+h1 .dot.off { background: #ef4444; }
+
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; max-width: 1500px; }
+@media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
+
+/* ── card ── */
+.card { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.06); overflow: hidden; display: flex; flex-direction: column; }
+.card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 11px 16px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;
+}
+.card-title { font-size: 0.88rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.08em; }
+
+/* ── rtsp url bar (prominent, below title, above video) ── */
+.rtsp-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 14px; background: #eff6ff; border-bottom: 1px solid #bfdbfe;
+}
+.rtsp-url {
+  font-family: 'Courier New', monospace; font-size: 0.84rem; font-weight: 700;
+  color: #1d4ed8; letter-spacing: 0.02em;
+  background: #fff; border: 1.5px solid #93c5fd; border-radius: 6px;
+  padding: 6px 12px; flex: 1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  cursor: pointer; transition: border-color 0.15s;
+}
+.rtsp-url:hover { background: #eff6ff; border-color: #3b82f6; }
+.copy-hint { font-size: 0.7rem; color: #16a34a; opacity: 0; transition: opacity 0.3s; white-space: nowrap; }
+.copy-hint.show { opacity: 1; }
+.rtsp-label { font-size: 0.72rem; font-weight: 700; color: #3b82f6; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.06em; }
+
+/* ── preview ── */
+.preview { width: 100%; aspect-ratio: 16/9; background: #cbd5e1; display: block; object-fit: contain; }
+.unavailable-overlay {
+  width: 100%; aspect-ratio: 16/9; background: #f1f5f9;
+  display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; color: #94a3b8;
+}
+.unavailable-overlay svg { width: 44px; height: 44px; opacity: 0.35; }
+.unavailable-overlay p { font-size: 0.83rem; }
+
+/* ── controls area ── */
+.controls { padding: 12px 14px; display: flex; flex-direction: column; gap: 9px; flex: 1; }
+.row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+
+/* ── badges ── */
+.badge { font-size: 0.7rem; font-weight: 700; padding: 3px 9px; border-radius: 20px; letter-spacing: 0.04em; }
+.badge-green  { background: #dcfce7; color: #15803d; }
+.badge-red    { background: #fee2e2; color: #b91c1c; }
+.badge-gray   { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
+.badge-yellow { background: #fef3c7; color: #d97706; }
+.badge-blue   { background: #dbeafe; color: #1d4ed8; }
+
+/* ── buttons ── */
+button {
+  border: none; border-radius: 6px; cursor: pointer;
+  font-size: 0.8rem; font-weight: 600; padding: 6px 13px;
+  transition: opacity 0.15s, transform 0.1s; white-space: nowrap;
+}
+button:hover:not(:disabled) { opacity: 0.82; transform: translateY(-1px); }
+button:active:not(:disabled) { transform: translateY(0); }
+button:disabled { opacity: 0.38; cursor: not-allowed; filter: none; transform: none; }
+.btn-green  { background: #16a34a; color: #fff; }
+.btn-red    { background: #dc2626; color: #fff; }
+.btn-blue   { background: #2563eb; color: #fff; }
+.btn-gray   { background: #64748b; color: #fff; }
+.btn-amber  { background: #d97706; color: #fff; }
+.btn-sm     { padding: 5px 10px; font-size: 0.76rem; }
+
+/* toggle buttons */
+.btn-toggle {
+  background: #e2e8f0; color: #475569; border: 1.5px solid #cbd5e1;
+  border-radius: 6px; padding: 5px 11px; font-size: 0.76rem; font-weight: 600;
+  cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+.btn-toggle:hover:not(:disabled) { background: #cbd5e1; }
+.btn-toggle.on { background: #dbeafe; color: #1e40af; border-color: #3b82f6; }
+.btn-toggle.on-green { background: #dcfce7; color: #15803d; border-color: #22c55e; }
+.btn-toggle.on-amber { background: #fef3c7; color: #d97706; border-color: #f59e0b; }
+
+/* ── progress ── */
+.progress-wrap { display: flex; align-items: center; gap: 8px; }
+.progress-wrap input[type="range"] { flex: 1; accent-color: #3b82f6; cursor: pointer; height: 4px; }
+.time-label {
+  font-size: 0.82rem; font-family: 'Courier New', monospace; font-weight: 700;
+  color: #1d4ed8; white-space: nowrap; min-width: 120px; text-align: right;
+  background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 5px; padding: 3px 8px;
+}
+
+/* ── select ── */
+select {
+  background: #fff; color: #1e293b; border: 1.5px solid #cbd5e1;
+  border-radius: 6px; padding: 5px 8px; font-size: 0.8rem;
+}
+
+/* ── speed display ── */
+.speed-display {
+  font-size: 0.82rem; font-weight: 700; font-family: monospace;
+  color: #7c3aed; background: #f5f3ff; border: 1.5px solid #c4b5fd;
+  border-radius: 5px; padding: 3px 9px; min-width: 52px; text-align: center;
+}
+
+/* ── section divider ── */
+.section-sep { height: 1px; background: #e2e8f0; margin: 4px 0; }
+
+/* ── effect panel ── */
+.effect-panel {
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;
+}
+.effect-panel-header { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.effect-panel-title { font-size: 0.72rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.1em; flex: 1; }
+/* effect section: toggle header + 2-col params */
+.eff-section { display: flex; flex-direction: column; gap: 4px; }
+.eff-hdr { display: flex; align-items: center; gap: 6px; }
+.eff-sw-btn { min-width: 64px; text-align: center; }
+.eff-params {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 5px 10px;
+}
+.eff-param { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.eff-param.span2 { grid-column: 1 / -1; }
+.eff-lbl { font-size: 0.72rem; color: #64748b; white-space: nowrap; width: 48px; flex-shrink: 0; font-weight: 500; }
+input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1; height: 4px; cursor: pointer; }
+.eff-val {
+  font-size: 0.72rem; font-family: 'Courier New', monospace;
+  color: #1d4ed8; background: #eff6ff; border: 1px solid #bfdbfe;
+  border-radius: 3px; padding: 1px 4px; white-space: nowrap; min-width: 38px; text-align: right; flex-shrink: 0;
+}
+.eff-param select { flex: 1; min-width: 0; font-size: 0.72rem; padding: 3px 5px; }
+/* checkbox group */
+.chk-group { display: flex; gap: 8px; align-items: center; flex-wrap: nowrap; }
+.chk-item { display: flex; align-items: center; gap: 4px; font-size: 0.74rem; color: #475569; cursor: pointer; white-space: nowrap; }
+.chk-item input { accent-color: #6366f1; cursor: pointer; }
+
+/* ── flex spacer for vertical alignment ── */
+.eff-spacer { flex: 1; min-height: 0; }
+/* ── video preview overlay ── */
+.vid-preview-wrap { position: relative; width: 100%; }
+.vid-overlay {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: linear-gradient(transparent, rgba(0,0,0,0.65));
+  display: flex; align-items: center; gap: 8px;
+  padding: 20px 10px 8px; pointer-events: auto;
+}
+.vid-pp-btn {
+  flex-shrink: 0; width: 30px; height: 30px;
+  background: rgba(255,255,255,0.92); color: #1e293b;
+  border: none; border-radius: 50%; cursor: pointer;
+  font-size: 0.85rem; display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s; padding: 0;
+}
+.vid-pp-btn:hover { background: #fff; }
+.vid-overlay input[type="range"] {
+  flex: 1; accent-color: #60a5fa; cursor: pointer;
+  height: 3px; min-width: 0;
+}
+.vid-time-disp {
+  font-size: 0.72rem; font-family: 'Courier New', monospace; font-weight: 700;
+  color: #fff; white-space: nowrap; flex-shrink: 0;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+}
+
+/* ── random confirm overlay ── */
+#random-confirm {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+  z-index: 100; align-items: center; justify-content: center;
+}
+#random-confirm.show { display: flex; }
+.confirm-box {
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+  padding: 24px 28px; max-width: 360px; text-align: center;
+}
+.confirm-box p { font-size: 0.9rem; color: #1e293b; margin-bottom: 18px; line-height: 1.5; }
+.confirm-box .row { justify-content: center; gap: 12px; }
+</style>
+</head>
+<body>
+
+<h1><span class="dot" id="mtx-dot"></span>Local Mock RTSP Monitor</h1>
+
+<div class="grid">
+
+<!-- ========== WEBCAM CARD ========== -->
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">📷 本地摄像头</span>
+    <span class="badge" id="wcam-badge">...</span>
+  </div>
+
+  <!-- RTSP URL bar -->
+  <div class="rtsp-bar">
+    <span class="rtsp-label">RTSP</span>
+    <div class="rtsp-url" id="wcam-rtsp" onclick="copyRtsp('wcam-rtsp','wcam-copy')" title="点击复制">{{ webcam_rtsp }}</div>
+    <span class="copy-hint" id="wcam-copy">✓ 已复制</span>
+  </div>
+
+  {% if webcam_available %}
+    <img class="preview" id="wcam-img" src="/stream/webcam" alt="webcam">
+  {% else %}
+    <div class="unavailable-overlay">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636"/>
+      </svg>
+      <p>本机未检测到摄像头</p>
+    </div>
+  {% endif %}
+
+  <div class="controls">
+    <!-- stream toggle -->
+    <div class="row">
+      {% if webcam_available %}
+        <button class="btn-green btn-sm" id="wcam-en-btn" onclick="webcamEnable()">▶ 启用推流</button>
+        <button class="btn-red btn-sm"   id="wcam-dis-btn" onclick="webcamDisable()">■ 禁用推流</button>
+        <button class="btn-blue btn-sm" id="wcam-disp-en" onclick="wcamDisplayEnable()" disabled>启用显示</button>
+        <button class="btn-gray btn-sm" id="wcam-disp-dis" onclick="wcamDisplayDisable()">禁用显示</button>
+      {% else %}
+        <button class="btn-gray btn-sm" disabled>摄像头不可用</button>
+      {% endif %}
+    </div>
+
+    {% if webcam_available %}
+    <!-- display toggle -->
+    <div class="row">
+          </div>
+    {% endif %}
+
+    <div class="eff-spacer"></div>
+    <div class="section-sep"></div>
+
+    <!-- effect panel: webcam -->
+    <div class="effect-panel" id="wcam-efx-panel">
+      <div class="effect-panel-header">
+        <span class="effect-panel-title">🎛 干扰效果</span>
+        <button class="btn-toggle" id="wcam-efx-preview" onclick="toggleEffectPreview('wcam')" disabled>预览: 关</button>
+        <button class="btn-toggle" id="wcam-efx-all" onclick="toggleEffectAll('wcam')">总开关: 关</button>
+        <button class="btn-toggle on-amber" onclick="triggerRandom('wcam')">🎲 随机</button>
+        <button class="btn-toggle" id="wcam-black" onclick="toggleBlack('wcam')">⬛ 全黑</button>
+      </div>
+      <!-- noise -->
+      <div class="eff-section">
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="wcam-noise-sw" onclick="toggleEffect('wcam','noise')">噪 点</button></div>
+        <div class="eff-params">
+          <div class="eff-param"><span class="eff-lbl">高斯σ</span><input type="range" class="eff-range" id="wcam-noise-sigma" min="0" max="80" step="1" value="20" oninput="setEfxVal('wcam','noise_gaussian_sigma',this.value,'wcam-noise-sigma-v')"><span class="eff-val" id="wcam-noise-sigma-v">20</span></div>
+          <div class="eff-param"><span class="eff-lbl">椒盐%</span><input type="range" class="eff-range" id="wcam-noise-sp" min="0" max="15" step="0.5" value="3" oninput="setEfxVal('wcam','noise_sp_prob',this.value/100,'wcam-noise-sp-v',v=>(v*100).toFixed(1)+'%')"><span class="eff-val" id="wcam-noise-sp-v">3.0%</span></div>
+        </div>
+      </div>
+      <!-- blur -->
+      <div class="eff-section">
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="wcam-blur-sw" onclick="toggleEffect('wcam','blur')">模 糊</button></div>
+        <div class="eff-params">
+          <div class="eff-param"><span class="eff-lbl">类型</span><select id="wcam-blur-type" onchange="setEfx('wcam',{blur_type:this.value})"><option value="gaussian">高斯</option><option value="motion">运动</option></select></div>
+          <div class="eff-param"><span class="eff-lbl">强度</span><input type="range" class="eff-range" id="wcam-blur-k" min="1" max="31" step="2" value="7" oninput="setEfxVal('wcam','blur_kernel',+this.value,'wcam-blur-k-v')"><span class="eff-val" id="wcam-blur-k-v">7</span></div>
+        </div>
+      </div>
+      <!-- occlusion -->
+      <div class="eff-section">
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="wcam-occ-sw" onclick="toggleEffect('wcam','occlusion')">遮挡块</button></div>
+        <div class="eff-params">
+          <div class="eff-param"><span class="eff-lbl">数量</span><input type="range" class="eff-range" id="wcam-occ-cnt" min="1" max="20" step="1" value="3" oninput="setEfxVal('wcam','occlusion_count',+this.value,'wcam-occ-cnt-v')"><span class="eff-val" id="wcam-occ-cnt-v">3</span></div>
+          <div class="eff-param"><span class="eff-lbl">最大px</span><input type="range" class="eff-range" id="wcam-occ-sz" min="10" max="200" step="5" value="80" oninput="setEfxVal('wcam','occlusion_max_size',+this.value,'wcam-occ-sz-v')"><span class="eff-val" id="wcam-occ-sz-v">80</span></div>
+          <div class="eff-param"><span class="eff-lbl">刷新s</span><input type="range" class="eff-range" id="wcam-occ-ref" min="0.5" max="10" step="0.5" value="2" oninput="setEfxVal('wcam','occlusion_refresh_sec',+this.value,'wcam-occ-ref-v',v=>v+'s')"><span class="eff-val" id="wcam-occ-ref-v">2s</span></div>
+          <div class="eff-param"><span class="eff-lbl">颜色</span><div class="chk-group"><label class="chk-item"><input type="checkbox" id="wcam-occ-black" checked onchange="updateOccColors('wcam')"> 黑</label><label class="chk-item"><input type="checkbox" id="wcam-occ-white" onchange="updateOccColors('wcam')"> 白</label><label class="chk-item"><input type="checkbox" id="wcam-occ-gray" onchange="updateOccColors('wcam')"> 灰</label></div></div>
+        </div>
+      </div>
+      <!-- brightness -->
+      <div class="eff-section">
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="wcam-bright-sw" onclick="toggleEffect('wcam','brightness')">亮 度</button></div>
+        <div class="eff-params"><div class="eff-param span2"><span class="eff-lbl">亮度值</span><input type="range" class="eff-range" id="wcam-bright-v" min="-100" max="100" step="1" value="0" oninput="setEfxVal('wcam','brightness_value',+this.value,'wcam-bright-disp',v=>v>0?'+'+v:v)"><span class="eff-val" id="wcam-bright-disp">0</span></div></div>
+      </div>
+      <!-- contrast -->
+      <div class="eff-section">
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="wcam-cont-sw" onclick="toggleEffect('wcam','contrast')">对比度</button></div>
+        <div class="eff-params"><div class="eff-param span2"><span class="eff-lbl">倍率</span><input type="range" class="eff-range" id="wcam-cont-v" min="0.3" max="3.0" step="0.05" value="1.0" oninput="setEfxVal('wcam','contrast_value',+this.value,'wcam-cont-disp',v=>parseFloat(v).toFixed(2)+'×')"><span class="eff-val" id="wcam-cont-disp">1.00×</span></div></div>
+      </div>
+      <!-- color -->
+      <div class="eff-section">
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="wcam-color-sw" onclick="toggleEffect('wcam','color')">颜 色</button></div>
+        <div class="eff-params">
+          <div class="eff-param"><span class="eff-lbl">色调</span><input type="range" class="eff-range" id="wcam-hue" min="-180" max="180" step="1" value="0" oninput="setEfxVal('wcam','color_hue_shift',+this.value,'wcam-hue-v',v=>v+'°')"><span class="eff-val" id="wcam-hue-v">0°</span></div>
+          <div class="eff-param"><span class="eff-lbl">饱和</span><input type="range" class="eff-range" id="wcam-sat" min="0" max="2" step="0.05" value="1" oninput="setEfxVal('wcam','color_saturation',+this.value,'wcam-sat-v',v=>parseFloat(v).toFixed(2))"><span class="eff-val" id="wcam-sat-v">1.00</span></div>
+        </div>
+      </div>
+    </div><!-- /effect-panel -->
+  </div>
+</div><!-- /webcam card -->
+
+<!-- ========== VIDEO CARD ========== -->
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">🎬 视频文件</span>
+    <span class="badge" id="vid-badge">...</span>
+  </div>
+
+  <!-- RTSP URL bar -->
+  <div class="rtsp-bar">
+    <span class="rtsp-label">RTSP</span>
+    <div class="rtsp-url" id="vid-rtsp" onclick="copyRtsp('vid-rtsp','vid-copy')" title="点击复制">{{ video_rtsp }}</div>
+    <span class="copy-hint" id="vid-copy">✓ 已复制</span>
+  </div>
+
+  <div class="vid-preview-wrap">
+    <img class="preview" id="vid-img" src="/stream/video" alt="video">
+    <div class="vid-overlay">
+      <button class="vid-pp-btn" id="vid-pp-btn" onclick="videoTogglePlay()" title="播放/暂停 (Space)">▶</button>
+      <input type="range" id="vid-progress" min="0" max="100" value="0" step="0.5"
+             oninput="onProgressInput(this.value)" onchange="onProgressChange(this.value)">
+      <span class="vid-time-disp" id="vid-time">0:00 / 0:00</span>
+    </div>
+  </div>
+
+  <div class="controls">
+    <!-- streaming + speed + seek (single row) -->
+    <div class="row">
+      <button class="btn-green btn-sm" id="vid-str-en"  onclick="vidStreamEnable()">▶ 启用推流</button>
+      <button class="btn-red btn-sm"   id="vid-str-dis" onclick="vidStreamDisable()">■ 禁用推流</button>
+      <span style="width:4px"></span>
+      <button class="btn-gray btn-sm" onclick="adjustSpeed(-0.1)" title="减速 (S)">−</button>
+      <span class="speed-display" id="vid-speed">1.0×</span>
+      <button class="btn-gray btn-sm" onclick="adjustSpeed(0.1)" title="加速 (W)">＋</button>
+      <span style="width:4px"></span>
+      <button class="btn-gray btn-sm" onclick="videoBackward()" title="后退3s (←/A)">⏪ -3s</button>
+      <button class="btn-gray btn-sm" onclick="videoForward()" title="前进3s (→/D)">⏩ +3s</button>
+    </div>
+
+    <!-- video selector + loop buttons -->
+    <div class="row">
+      <select id="vid-select" style="flex:1;min-width:0" onchange="loadVideo(this.value)">
+        {% for v in videos %}
+          <option value="{{ v }}" {% if v == current_video %}selected{% endif %}>{{ v }}</option>
+        {% endfor %}
+        {% if not videos %}<option disabled>videos/ 目录无视频文件</option>{% endif %}
+      </select>
+      <button class="btn-toggle" id="vid-loop-single" title="单视频循环" onclick="toggleLoop('single')">🔂</button>
+      <button class="btn-toggle" id="vid-loop-list"   title="列表循环"   onclick="toggleLoop('playlist')">🔁</button>
+    </div>
+
+    <div class="section-sep"></div>
+
+    <!-- effect panel: video -->
+    <div class="effect-panel" id="vid-efx-panel">
+      <div class="effect-panel-header">
+        <span class="effect-panel-title">🎛 干扰效果</span>
+        <button class="btn-toggle" id="vid-efx-preview" onclick="toggleEffectPreview('vid')" disabled>预览: 关</button>
+        <button class="btn-toggle" id="vid-efx-all" onclick="toggleEffectAll('vid')">总开关: 关</button>
+        <button class="btn-toggle on-amber" onclick="triggerRandom('vid')">🎲 随机</button>
+        <button class="btn-toggle" id="vid-black" onclick="toggleBlack('vid')">⬛ 全黑</button>
+      </div>
+      <!-- noise -->
+      <div class="eff-section">
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="vid-noise-sw" onclick="toggleEffect('vid','noise')">噪 点</button></div>
+        <div class="eff-params">
+          <div class="eff-param"><span class="eff-lbl">高斯σ</span><input type="range" class="eff-range" id="vid-noise-sigma" min="0" max="80" step="1" value="20" oninput="setEfxVal('vid','noise_gaussian_sigma',this.value,'vid-noise-sigma-v')"><span class="eff-val" id="vid-noise-sigma-v">20</span></div>
+          <div class="eff-param"><span class="eff-lbl">椒盐%</span><input type="range" class="eff-range" id="vid-noise-sp" min="0" max="15" step="0.5" value="3" oninput="setEfxVal('vid','noise_sp_prob',this.value/100,'vid-noise-sp-v',v=>(v*100).toFixed(1)+'%')"><span class="eff-val" id="vid-noise-sp-v">3.0%</span></div>
+        </div>
+      </div>
+      <!-- blur -->
+      <div class="eff-section">
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="vid-blur-sw" onclick="toggleEffect('vid','blur')">模 糊</button></div>
+        <div class="eff-params">
+          <div class="eff-param"><span class="eff-lbl">类型</span><select id="vid-blur-type" onchange="setEfx('vid',{blur_type:this.value})"><option value="gaussian">高斯</option><option value="motion">运动</option></select></div>
+          <div class="eff-param"><span class="eff-lbl">强度</span><input type="range" class="eff-range" id="vid-blur-k" min="1" max="31" step="2" value="7" oninput="setEfxVal('vid','blur_kernel',+this.value,'vid-blur-k-v')"><span class="eff-val" id="vid-blur-k-v">7</span></div>
+        </div>
+      </div>
+      <!-- occlusion -->
+      <div class="eff-section">
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="vid-occ-sw" onclick="toggleEffect('vid','occlusion')">遮挡块</button></div>
+        <div class="eff-params">
+          <div class="eff-param"><span class="eff-lbl">数量</span><input type="range" class="eff-range" id="vid-occ-cnt" min="1" max="20" step="1" value="3" oninput="setEfxVal('vid','occlusion_count',+this.value,'vid-occ-cnt-v')"><span class="eff-val" id="vid-occ-cnt-v">3</span></div>
+          <div class="eff-param"><span class="eff-lbl">最大px</span><input type="range" class="eff-range" id="vid-occ-sz" min="10" max="200" step="5" value="80" oninput="setEfxVal('vid','occlusion_max_size',+this.value,'vid-occ-sz-v')"><span class="eff-val" id="vid-occ-sz-v">80</span></div>
+          <div class="eff-param"><span class="eff-lbl">刷新s</span><input type="range" class="eff-range" id="vid-occ-ref" min="0.5" max="10" step="0.5" value="2" oninput="setEfxVal('vid','occlusion_refresh_sec',+this.value,'vid-occ-ref-v',v=>v+'s')"><span class="eff-val" id="vid-occ-ref-v">2s</span></div>
+          <div class="eff-param"><span class="eff-lbl">颜色</span><div class="chk-group"><label class="chk-item"><input type="checkbox" id="vid-occ-black" checked onchange="updateOccColors('vid')"> 黑</label><label class="chk-item"><input type="checkbox" id="vid-occ-white" onchange="updateOccColors('vid')"> 白</label><label class="chk-item"><input type="checkbox" id="vid-occ-gray" onchange="updateOccColors('vid')"> 灰</label></div></div>
+        </div>
+      </div>
+      <!-- brightness -->
+      <div class="eff-section">
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="vid-bright-sw" onclick="toggleEffect('vid','brightness')">亮 度</button></div>
+        <div class="eff-params"><div class="eff-param span2"><span class="eff-lbl">亮度值</span><input type="range" class="eff-range" id="vid-bright-v" min="-100" max="100" step="1" value="0" oninput="setEfxVal('vid','brightness_value',+this.value,'vid-bright-disp',v=>v>0?'+'+v:v)"><span class="eff-val" id="vid-bright-disp">0</span></div></div>
+      </div>
+      <!-- contrast -->
+      <div class="eff-section">
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="vid-cont-sw" onclick="toggleEffect('vid','contrast')">对比度</button></div>
+        <div class="eff-params"><div class="eff-param span2"><span class="eff-lbl">倍率</span><input type="range" class="eff-range" id="vid-cont-v" min="0.3" max="3.0" step="0.05" value="1.0" oninput="setEfxVal('vid','contrast_value',+this.value,'vid-cont-disp',v=>parseFloat(v).toFixed(2)+'×')"><span class="eff-val" id="vid-cont-disp">1.00×</span></div></div>
+      </div>
+      <!-- color -->
+      <div class="eff-section">
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="vid-color-sw" onclick="toggleEffect('vid','color')">颜 色</button></div>
+        <div class="eff-params">
+          <div class="eff-param"><span class="eff-lbl">色调</span><input type="range" class="eff-range" id="vid-hue" min="-180" max="180" step="1" value="0" oninput="setEfxVal('vid','color_hue_shift',+this.value,'vid-hue-v',v=>v+'°')"><span class="eff-val" id="vid-hue-v">0°</span></div>
+          <div class="eff-param"><span class="eff-lbl">饱和</span><input type="range" class="eff-range" id="vid-sat" min="0" max="2" step="0.05" value="1" oninput="setEfxVal('vid','color_saturation',+this.value,'vid-sat-v',v=>parseFloat(v).toFixed(2))"><span class="eff-val" id="vid-sat-v">1.00</span></div>
+        </div>
+      </div>
+    </div><!-- /effect-panel -->
+  </div>
+</div><!-- /video card -->
+
+</div><!-- .grid -->
+
+<!-- Random confirm dialog -->
+<div id="random-confirm">
+  <div class="confirm-box">
+    <p>随机干扰将 <strong>覆盖</strong> 当前所有干扰配置，确认继续？</p>
+    <div class="row">
+      <button class="btn-red" onclick="confirmRandom()">确认覆盖</button>
+      <button class="btn-gray" onclick="cancelRandom()">取消</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+const WCAM = 'wcam', VID = 'vid';
+let _totalSec = 0, _seekDragging = false, _isPlaying = false;
+let _webcamAvail = {{ 'true' if webcam_available else 'false' }};
+let _randomTarget = null;
+// pending effect patches (debounced)
+let _efxPatch = {wcam:{}, vid:{}};
+let _efxTimer = {wcam:null, vid:null};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function fmtTime(sec) {
+  sec = Math.max(0, Math.floor(sec));
+  const m = Math.floor(sec/60), s = sec%60;
+  return `${m}:${s.toString().padStart(2,'0')}`;
+}
+function api(url, body) {
+  return fetch(url, {
+    method:'POST',
+    headers: body !== undefined ? {'Content-Type':'application/json'} : {},
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+}
+function efxApi(stream) {
+  return stream === WCAM ? '/api/webcam/effects' : '/api/video/effects';
+}
+
+// ─── RTSP copy ────────────────────────────────────────────────────────────────
+function copyRtsp(elemId, hintId) {
+  navigator.clipboard.writeText(document.getElementById(elemId).textContent.trim())
+    .then(() => {
+      const h = document.getElementById(hintId);
+      h.classList.add('show');
+      setTimeout(() => h.classList.remove('show'), 1600);
+    });
+}
+
+// ─── Webcam stream ────────────────────────────────────────────────────────────
+async function webcamEnable()  { await api('/api/webcam/enable'); }
+async function webcamDisable() { await api('/api/webcam/disable'); }
+
+function updateWebcamUI(d) {
+  const badge = document.getElementById('wcam-badge');
+  if (!_webcamAvail) { badge.className='badge badge-gray'; badge.textContent='不可用'; return; }
+  if (d.enabled) { badge.className='badge badge-green'; badge.textContent='推流中'; }
+  else           { badge.className='badge badge-red';   badge.textContent='已禁用'; }
+  const en=document.getElementById('wcam-en-btn'), dis=document.getElementById('wcam-dis-btn');
+  if (en)  en.disabled  = d.enabled;
+  if (dis) dis.disabled = !d.enabled;
+}
+
+// ─── Video stream + playback ──────────────────────────────────────────────────
+async function videoPlay()    { await api('/api/video/play'); }
+async function videoPause()   { await api('/api/video/pause'); }
+async function videoForward() { await api('/api/video/forward?seconds=3'); }
+async function videoBackward(){ await api('/api/video/backward?seconds=3'); }
+async function loadVideo(name){ await api('/api/video/load', {path:name}); }
+async function vidStreamEnable()  { await api('/api/video/streaming/enable'); }
+async function vidStreamDisable() { await api('/api/video/streaming/disable'); }
+
+async function videoTogglePlay() {
+  if (_isPlaying) { await api('/api/video/pause'); }
+  else            { await api('/api/video/play'); }
+}
+
+function wcamDisplayEnable() {
+  const img = document.getElementById('wcam-img');
+  if (img) img.style.display = '';
+  const en = document.getElementById('wcam-disp-en');
+  const dis = document.getElementById('wcam-disp-dis');
+  if (en)  en.disabled  = true;
+  if (dis) dis.disabled = false;
+}
+function wcamDisplayDisable() {
+  const img = document.getElementById('wcam-img');
+  if (img) img.style.display = 'none';
+  const en = document.getElementById('wcam-disp-en');
+  const dis = document.getElementById('wcam-disp-dis');
+  if (en)  en.disabled  = false;
+  if (dis) dis.disabled = true;
+}
+
+async function adjustSpeed(delta) {
+  const r = await api('/api/video/speed', {delta});
+  const d = await r.json();
+  document.getElementById('vid-speed').textContent = d.speed.toFixed(1)+'×';
+}
+
+function onProgressInput(val) {
+  _seekDragging = true;
+  const sec = (_totalSec * val) / 100;
+  document.getElementById('vid-time').textContent = `${fmtTime(sec)} / ${fmtTime(_totalSec)}`;
+}
+function onProgressChange(val) {
+  _seekDragging = false;
+  const sec = (_totalSec * val) / 100;
+  api(`/api/video/seek?seconds=${sec.toFixed(1)}`);
+}
+
+// ─── Loop buttons ─────────────────────────────────────────────────────────────
+async function toggleLoop(mode) {
+  const cur = document.getElementById('vid-loop-single').classList.contains('on') ? 'single'
+            : document.getElementById('vid-loop-list').classList.contains('on')   ? 'playlist' : 'none';
+  const next = cur === mode ? 'none' : mode;
+  const r = await api('/api/video/loop', {mode: next});
+  const d = await r.json();
+  updateLoopButtons(d.loop_mode);
+}
+function updateLoopButtons(mode) {
+  const sBtn = document.getElementById('vid-loop-single');
+  const lBtn = document.getElementById('vid-loop-list');
+  sBtn.className = 'btn-toggle' + (mode==='single'   ? ' on' : '');
+  lBtn.className = 'btn-toggle' + (mode==='playlist' ? ' on' : '');
+}
+
+// ─── Video UI update ──────────────────────────────────────────────────────────
+function updateVideoUI(d) {
+  const badge = document.getElementById('vid-badge');
+  if (!d.streaming)  { badge.className='badge badge-gray';   badge.textContent='推流已停'; }
+  else if (d.playing){ badge.className='badge badge-green';  badge.textContent='推流中'; }
+  else               { badge.className='badge badge-yellow'; badge.textContent='已暂停'; }
+
+  _isPlaying = d.playing || false;
+  const ppBtn = document.getElementById('vid-pp-btn');
+  if (ppBtn) {
+    ppBtn.textContent = _isPlaying ? '⏸' : '▶';
+    ppBtn.title = (_isPlaying ? '暂停' : '播放') + ' (Space)';
+  }
+  document.getElementById('vid-speed').textContent = (d.speed||1).toFixed(1)+'×';
+  updateLoopButtons(d.loop_mode||'none');
+
+  const enBtn  = document.getElementById('vid-str-en');
+  const disBtn = document.getElementById('vid-str-dis');
+  if (enBtn)  enBtn.disabled  = d.streaming;
+  if (disBtn) disBtn.disabled = !d.streaming;
+
+  _totalSec = d.total_seconds || 0;
+  if (!_seekDragging) {
+    const cur = d.current_seconds || 0;
+    const pct = _totalSec > 0 ? (cur/_totalSec)*100 : 0;
+    document.getElementById('vid-progress').value = pct;
+    document.getElementById('vid-time').textContent = `${fmtTime(cur)} / ${fmtTime(_totalSec)}`;
+  }
+  const sel = document.getElementById('vid-select');
+  if (sel && d.file_name && sel.value !== d.file_name) {
+    for (const o of sel.options) { if (o.value === d.file_name) { sel.value = d.file_name; break; } }
+  }
+}
+
+// ─── Effects helpers ──────────────────────────────────────────────────────────
+function setEfxVal(stream, key, val, dispId, fmt) {
+  const disp = document.getElementById(dispId);
+  if (disp) disp.textContent = fmt ? fmt(val) : val;
+  scheduleEfx(stream, {[key]: parseFloat(val)});
+}
+function setEfx(stream, patch) { scheduleEfx(stream, patch); }
+
+function scheduleEfx(stream, patch) {
+  Object.assign(_efxPatch[stream], patch);
+  clearTimeout(_efxTimer[stream]);
+  _efxTimer[stream] = setTimeout(() => {
+    const p = _efxPatch[stream]; _efxPatch[stream] = {};
+    fetch(efxApi(stream), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(p)});
+  }, 80);
+}
+
+function toggleEffectAll(stream) {
+  const btn = document.getElementById(stream+'-efx-all');
+  const isOn = btn.classList.contains('on-green');
+  btn.classList.toggle('on-green', !isOn);
+  btn.textContent = isOn ? '总开关: 关' : '总开关: 开';
+  const prevBtn = document.getElementById(stream+'-efx-preview');
+  if (prevBtn) prevBtn.disabled = isOn; // disable preview when turning master off
+  scheduleEfx(stream, {all_enabled: !isOn});
+}
+
+function toggleEffectPreview(stream) {
+  const btn = document.getElementById(stream+'-efx-preview');
+  const isOn = btn.classList.contains('on');
+  btn.classList.toggle('on', !isOn);
+  btn.textContent = isOn ? '预览: 关' : '预览: 开';
+  scheduleEfx(stream, {preview_enabled: !isOn});
+}
+
+function toggleBlack(stream) {
+  const btn = document.getElementById(stream+'-black');
+  const isOn = btn.classList.contains('on');
+  btn.classList.toggle('on', !isOn);
+  scheduleEfx(stream, {black_screen: !isOn});
+}
+
+function toggleEffect(stream, effect) {
+  const btn = document.getElementById(stream+'-'+effect+'-sw');
+  const isOn = btn.classList.contains('on');
+  btn.classList.toggle('on', !isOn);
+  scheduleEfx(stream, {[effect+'_enabled']: !isOn});
+}
+
+function updateOccColors(stream) {
+  const colors = [];
+  if (document.getElementById(stream+'-occ-black').checked) colors.push('black');
+  if (document.getElementById(stream+'-occ-white').checked) colors.push('white');
+  if (document.getElementById(stream+'-occ-gray').checked)  colors.push('gray');
+  scheduleEfx(stream, {occlusion_colors: colors.length ? colors : ['black']});
+}
+
+// ─── Random effects ───────────────────────────────────────────────────────────
+function triggerRandom(stream) { _randomTarget = stream; document.getElementById('random-confirm').classList.add('show'); }
+function cancelRandom() { _randomTarget=null; document.getElementById('random-confirm').classList.remove('show'); }
+function confirmRandom() {
+  const s = _randomTarget; _randomTarget=null;
+  document.getElementById('random-confirm').classList.remove('show');
+  if (!s) return;
+  const rnd = (lo,hi) => lo + Math.random()*(hi-lo);
+  const patch = {
+    all_enabled: true,
+    black_screen: false,
+    noise_enabled: Math.random()>0.4,
+    noise_gaussian_sigma: rnd(0,50),
+    noise_sp_prob: rnd(0,0.08),
+    blur_enabled: Math.random()>0.4,
+    blur_type: Math.random()>0.5 ? 'gaussian' : 'motion',
+    blur_kernel: Math.floor(rnd(1,15))*2+1,
+    occlusion_enabled: Math.random()>0.5,
+    occlusion_count: Math.floor(rnd(1,10)),
+    occlusion_max_size: Math.floor(rnd(20,120)),
+    occlusion_refresh_sec: rnd(0.5,5),
+    brightness_enabled: Math.random()>0.5,
+    brightness_value: rnd(-60,60),
+    contrast_enabled: Math.random()>0.5,
+    contrast_value: rnd(0.5,2.5),
+    color_enabled: Math.random()>0.5,
+    color_hue_shift: rnd(-180,180),
+    color_saturation: rnd(0.2,2.0),
+  };
+  fetch(efxApi(s), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(patch)})
+    .then(r=>r.json()).then(cfg=>syncEffectUI(s, cfg));
+}
+
+// ─── Sync effect UI from server state ────────────────────────────────────────
+function syncEffectUI(s, c) {
+  // toggles
+  const setToggle = (id, on) => {
+    const el = document.getElementById(id); if(!el) return;
+    el.classList.toggle('on', on); el.classList.toggle('on-green', false);
+  };
+  const setToggleGreen = (id, on) => {
+    const el = document.getElementById(id); if(!el) return;
+    el.classList.toggle('on-green', on);
+    el.textContent = on ? '总开关: 开' : '总开关: 关';
+  };
+  setToggleGreen(s+'-efx-all', c.all_enabled);
+  // preview toggle
+  const prevBtn = document.getElementById(s+'-efx-preview');
+  if (prevBtn) {
+    prevBtn.disabled = !c.all_enabled;
+    prevBtn.classList.toggle('on', c.preview_enabled||false);
+    prevBtn.textContent = c.preview_enabled ? '预览: 开' : '预览: 关';
+  }
+  setToggle(s+'-black', c.black_screen);
+  setToggle(s+'-noise-sw',  c.noise_enabled);
+  setToggle(s+'-blur-sw',   c.blur_enabled);
+  setToggle(s+'-occ-sw',    c.occlusion_enabled);
+  setToggle(s+'-bright-sw', c.brightness_enabled);
+  setToggle(s+'-cont-sw',   c.contrast_enabled);
+  setToggle(s+'-color-sw',  c.color_enabled);
+
+  const setSlider = (id, val) => { const el=document.getElementById(id); if(el) el.value=val; };
+  setSlider(s+'-noise-sigma', c.noise_gaussian_sigma);
+  setSlider(s+'-noise-sp',    +(c.noise_sp_prob*100).toFixed(1));
+  setSlider(s+'-blur-k',  c.blur_kernel);
+  setSlider(s+'-occ-cnt', c.occlusion_count);
+  setSlider(s+'-occ-sz',  c.occlusion_max_size);
+  setSlider(s+'-occ-ref', c.occlusion_refresh_sec);
+  setSlider(s+'-bright-v', c.brightness_value);
+  setSlider(s+'-cont-v',   c.contrast_value);
+  setSlider(s+'-hue', c.color_hue_shift);
+  setSlider(s+'-sat', c.color_saturation);
+
+  const setVal = (id, txt) => { const el=document.getElementById(id); if(el) el.textContent=txt; };
+  setVal(s+'-noise-sigma-v', Math.round(c.noise_gaussian_sigma));
+  setVal(s+'-noise-sp-v', (c.noise_sp_prob*100).toFixed(1)+'%');
+  setVal(s+'-blur-k-v', c.blur_kernel);
+  setVal(s+'-occ-cnt-v', c.occlusion_count);
+  setVal(s+'-occ-sz-v',  c.occlusion_max_size);
+  setVal(s+'-occ-ref-v', c.occlusion_refresh_sec+'s');
+  setVal(s+'-bright-disp', c.brightness_value>0?'+'+c.brightness_value:c.brightness_value);
+  setVal(s+'-cont-disp', parseFloat(c.contrast_value).toFixed(2)+'×');
+  setVal(s+'-hue-v', c.color_hue_shift+'°');
+  setVal(s+'-sat-v', parseFloat(c.color_saturation).toFixed(2));
+
+  const bt = document.getElementById(s+'-blur-type');
+  if (bt) bt.value = c.blur_type||'gaussian';
+
+  const colors = c.occlusion_colors||[];
+  const chk=(id,v)=>{ const el=document.getElementById(id); if(el) el.checked=v; };
+  chk(s+'-occ-black', colors.includes('black'));
+  chk(s+'-occ-white', colors.includes('white'));
+  chk(s+'-occ-gray',  colors.includes('gray'));
+}
+
+// ─── Poll status ──────────────────────────────────────────────────────────────
+async function pollStatus() {
+  try {
+    const r = await fetch('/api/status');
+    const d = await r.json();
+    updateWebcamUI(d.webcam);
+    updateVideoUI(d.video);
+    syncEffectUI(WCAM, d.webcam.effects);
+    syncEffectUI(VID,  d.video.effects);
+    document.getElementById('mtx-dot').className = d.webcam.available ? 'dot' : 'dot off';
+  } catch(_) {}
+  setTimeout(pollStatus, 2000);
+}
+
+// ─── Keyboard shortcuts ────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+  switch (e.key) {
+    case ' ':         e.preventDefault(); videoTogglePlay(); break;
+    case 'ArrowLeft':
+    case 'a': case 'A': e.preventDefault(); videoBackward(); break;
+    case 'ArrowRight':
+    case 'd': case 'D': e.preventDefault(); videoForward(); break;
+    case 'w': case 'W':  e.preventDefault(); adjustSpeed(0.1); break;
+    case 's': case 'S':  e.preventDefault(); adjustSpeed(-0.1); break;
+  }
+});
+
+pollStatus();
+</script>
+</body>
+</html>
