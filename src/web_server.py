@@ -11,7 +11,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from src.config import list_videos, get_videos_dir
+from src.config import list_videos, get_videos_dir, get_host_ips
 from src.webcam_streamer import WebcamStreamer
 from src.video_streamer import VideoStreamer
 
@@ -77,10 +77,12 @@ def create_app(
         cache_size=0,
     )
 
-    rtsp_host = "localhost"
     rtsp_port = cfg["server"]["rtsp_port"]
-    webcam_rtsp = f"rtsp://{rtsp_host}:{rtsp_port}{cfg['webcam']['rtsp_path']}"
-    video_rtsp = f"rtsp://{rtsp_host}:{rtsp_port}{cfg['video']['rtsp_path']}"
+    _host_ips = get_host_ips() or ["localhost"]
+    webcam_rtsp_urls = [f"rtsp://{ip}:{rtsp_port}{cfg['webcam']['rtsp_path']}" for ip in _host_ips]
+    video_rtsp_urls = [f"rtsp://{ip}:{rtsp_port}{cfg['video']['rtsp_path']}" for ip in _host_ips]
+    webcam_rtsp = webcam_rtsp_urls[0]  # primary for status API
+    video_rtsp = video_rtsp_urls[0]    # primary for status API
 
     # ------------------------------------------------------------------ pages
     @app.get("/", response_class=HTMLResponse)
@@ -91,8 +93,8 @@ def create_app(
         rendered = tmpl.render(
             webcam_available=webcam.available,
             webcam_enabled=webcam.enabled,
-            webcam_rtsp=webcam_rtsp,
-            video_rtsp=video_rtsp,
+            webcam_rtsp_urls=webcam_rtsp_urls,
+            video_rtsp_urls=video_rtsp_urls,
             videos=videos,
             current_video=current,
         )
