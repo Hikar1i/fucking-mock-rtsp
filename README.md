@@ -9,6 +9,7 @@
 - [技术栈](#技术栈)
 - [项目功能](#项目功能)
 - [安装与启动](#安装与启动)
+- [GPU 加速（可选）](#gpu-加速可选)
 - [访问地址](#访问地址)
 - [Web 监控页面使用教程](#web-监控页面使用教程)
 - [配置文件参考](#配置文件参考)
@@ -26,7 +27,8 @@
 | **Web 框架** | FastAPI + Uvicorn |
 | **模板引擎** | Jinja2 |
 | **视频处理** | OpenCV (`opencv-python`) + NumPy |
-| **视频编码/推流** | FFmpeg（libx264 / h264_nvenc 自动选择） |
+| **GPU 加速（可选）** | CuPy (`cupy-cuda12x`) / PyTorch CUDA / OpenCV CUDA（三层自动降级） |
+| **视频编码/推流** | FFmpeg（libx264 / h264_nvenc 跨平台自动选择） |
 | **RTSP 服务器** | [MediaMTX](https://github.com/bluenviron/mediamtx)（首次启动自动下载） |
 | **并发** | Python `threading` + `ThreadPoolExecutor` + `asyncio` |
 | **配置** | PyYAML |
@@ -52,6 +54,7 @@
   - 全黑画面
 - **IP 白名单访问控制**：Web UI 和 RTSP 流均可限制允许访问的 IP 地址
 - **跨平台**：Windows（libx264 / h264_nvenc） 与 Linux（同）均可运行
+- **GPU 加速**：启动时自动检测 NVIDIA GPU，效果处理自动切换至 GPU 路径（CuPy / PyTorch CUDA），无 GPU 时无缝降级至 CPU
 
 ---
 
@@ -97,6 +100,66 @@ uv run python main.py
 ### 停止
 
 按 `Ctrl+C` 优雅退出，所有子进程（MediaMTX、FFmpeg）会自动清理。
+
+---
+
+## GPU 加速（可选）
+
+### 工作原理
+
+`src/gpu_backend.py` 在进程启动时**自动探测**以下后端（按优先级）：
+
+| 优先级 | 后端 | 安装方式 | 说明 |
+|--------|------|----------|------|
+| 1 | **CuPy** | `uv sync --extra gpu` | NumPy 直接替换，收益最大 |
+| 2 | **PyTorch CUDA** | conda `cu12-dev` 环境已内置 | 实测噪声生成 35.5× 加速 |
+| 3 | **OpenCV CUDA** | 需 CUDA 编译的 OpenCV（见下文） | Gaussian 模糊 GPU 化 |
+| — | **CPU 降级** | 始终可用 | 无 GPU 或 GPU 路径异常时自动回退 |
+
+> 启动日志会打印当前使用的 GPU 后端，例如：
+> `GPU backend: PyTorch 2.9.1+cu128 / CUDA 12.8 — device: NVIDIA RTX A4000`
+
+### 实测性能（1024×576 @ NVIDIA RTX A4000）
+
+| 操作 | GPU（PyTorch） | CPU（NumPy） | 加速比 |
+|------|----------------|--------------|--------|
+| 高斯噪声 + 椒盐噪声 | **0.89 ms** | 31.6 ms | **35.5×** |
+| 色相/饱和度调整 | **3.44 ms** | 6.31 ms | **1.8×** |
+| 亮度/对比度 | — | 0.19 ms | *CPU 更快，不走 GPU* |
+
+### 安装 GPU 依赖
+
+`uv`/`pyproject.toml` 的 PEP 508 环境标记不支持运行时硬件检测，提供辅助脚本自动判断：
+
+**Linux：**
+```bash
+bash install-gpu.sh
+```
+
+**Windows：**
+```bat
+install-gpu.bat
+```
+
+脚本逻辑：检测到 `nvidia-smi` 成功则执行 `uv sync --extra gpu`（安装 `cupy-cuda12x`），否则执行 `uv sync`。
+
+也可手动安装：
+```bash
+uv sync --extra gpu   # 有 NVIDIA GPU
+uv sync               # 无 GPU
+```
+
+### conda 环境（cu12-dev）
+
+在 `cu12-dev` conda 环境中 PyTorch CUDA **已内置**，无需额外安装即可获得 GPU 加速；`cupy-cuda12x` 为可选追加。
+
+### OpenCV CUDA 说明
+
+pip wheel（`opencv-python`）**不包含 CUDA 编译**。如需 `OPENCV_CUDA_AVAILABLE = True`（Gaussian 模糊 GPU 化）：
+- 使用 conda-forge 提供的含 CUDA 编译的 OpenCV，**或**
+- 从源码编译 OpenCV（`cmake -D WITH_CUDA=ON ...`）
+
+运行时若 OpenCV CUDA 不可用，Gaussian 模糊自动降级至 CPU（已 SIMD 优化，1ms 左右）。
 
 ---
 
@@ -210,7 +273,8 @@ encoding:
 
 - **降低延迟/卡顿**：将 `width` / `height` 减小（如 `640×360`）可显著降低 CV 效果的计算量
 - **降低网络带宽**：减小 `bitrate`（如 `"500k"`）
-- **NVIDIA GPU 加速**：将 `encoder` 设为 `"h264_nvenc"`（需安装 NVIDIA 驱动）
+- **NVIDIA GPU 加速编码**：`encoder: auto` 现在跨平台检测 NVENC（Windows/Linux 均可），也可直接设为 `"h264_nvenc"`
+- **效果 GPU 加速**：安装 `cupy-cuda12x` 或在含 PyTorch CUDA 的环境运行，效果处理自动走 GPU 路径（见 [GPU 加速](#gpu-加速可选)）
 
 ---
 
@@ -287,6 +351,7 @@ encoding:
 
 ```
 main.py
+├── gpu_backend         — 启动时探测 CuPy / PyTorch CUDA / OpenCV CUDA，导出能力标志
 ├── MediaMTXManager     — 下载、生成配置、启动/停止 MediaMTX 进程
 ├── WebcamStreamer       — 摄像头帧采集 + 效果处理 + RTSP 推流 + MJPEG 预览
 ├── VideoStreamer        — 视频文件解码 + 播放控制 + 效果处理 + RTSP 推流 + MJPEG 预览
@@ -346,6 +411,19 @@ FastAPI /stream/* 每帧从队列取最新 JPEG 推送给浏览器
 - **线程安全**：每帧 apply() 先复制 config 快照，再处理，锁粒度最小
 - **Config Generation**：每次配置变更递增 generation 计数器；帧处理线程检测到变更时清空预览队列，避免旧效果帧残留
 - **状态保存/恢复**：关闭主开关时保存当前配置，重新开启时自动恢复
+- **GPU 加速分层**：各效果方法内部按 `CuPy → PyTorch CUDA → CPU` 优先级选路；亮度/对比度因 PCIe 传输开销高于 `convertScaleAbs`（0.19ms），PyTorch 路径被排除，仅 CuPy 路径生效
+
+### GPU 后端（gpu_backend.py）
+
+`src/gpu_backend.py` 在模块导入时执行一次探测，结果缓存为模块级布尔标志：
+
+| 标志 | 含义 |
+|------|------|
+| `CUPY_AVAILABLE` | cupy 可导入且 GPU 响应正常 |
+| `TORCH_CUDA_AVAILABLE` | `torch.cuda.is_available()` 为真 |
+| `OPENCV_CUDA_AVAILABLE` | OpenCV 以 CUDA 编译且有可用设备 |
+
+`probe_nvenc()` 跨平台调用 `nvidia-smi`，`_resolve_encoder("auto")` 用此函数在 Windows/Linux 均能自动选择 `h264_nvenc`。
 
 ### 依赖版本管理
 
