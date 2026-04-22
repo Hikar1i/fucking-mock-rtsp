@@ -14,15 +14,17 @@ body {
   min-height: 100vh;
   padding: 18px 20px 40px;
 }
+.page-wrap { max-width: 1440px; margin: 0 auto; }
 h1 {
   font-size: 1.35rem; font-weight: 700; color: #1e293b;
   letter-spacing: 0.04em; margin-bottom: 18px;
   display: flex; align-items: center; gap: 10px;
+  max-width: 1440px; margin-left: auto; margin-right: auto;
 }
 h1 .dot { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; display: inline-block; }
 h1 .dot.off { background: #ef4444; }
 
-.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; max-width: 1500px; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; max-width: 1440px; margin: 0 auto; }
 @media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
 
 /* ── card ── */
@@ -52,7 +54,7 @@ h1 .dot.off { background: #ef4444; }
 .rtsp-label { font-size: 0.72rem; font-weight: 700; color: #3b82f6; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.06em; }
 
 /* ── preview ── */
-.preview { width: 100%; aspect-ratio: 16/9; background: #cbd5e1; display: block; object-fit: contain; }
+.preview { width: 100%; aspect-ratio: 16/9; background: #000; display: block; object-fit: contain; }
 .unavailable-overlay {
   width: 100%; aspect-ratio: 16/9; background: #f1f5f9;
   display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; color: #94a3b8;
@@ -263,7 +265,7 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
         <span class="effect-panel-title">🎛 干扰效果</span>
         <button class="btn-toggle" id="wcam-efx-preview" onclick="toggleEffectPreview('wcam')" disabled>干扰预览: 关</button>
         <button class="btn-toggle" id="wcam-efx-all" onclick="toggleEffectAll('wcam')">干扰效果: 关</button>
-        <button class="btn-toggle on-amber" onclick="triggerRandom('wcam')">生成随机干扰</button>
+        <button class="btn-toggle on-amber" id="wcam-efx-rand" onclick="triggerRandom('wcam')">生成随机干扰</button>
         <button class="btn-toggle" id="wcam-black" onclick="toggleBlack('wcam')">画面全黑蒙版</button>
       </div>
       <!-- noise -->
@@ -376,7 +378,7 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
         <span class="effect-panel-title">🎛 干扰效果</span>
         <button class="btn-toggle" id="vid-efx-preview" onclick="toggleEffectPreview('vid')" disabled>干扰预览: 关</button>
         <button class="btn-toggle" id="vid-efx-all" onclick="toggleEffectAll('vid')">干扰效果: 关</button>
-        <button class="btn-toggle on-amber" onclick="triggerRandom('vid')">生成随机干扰</button>
+        <button class="btn-toggle on-amber" id="vid-efx-rand" onclick="triggerRandom('vid')">生成随机干扰</button>
         <button class="btn-toggle" id="vid-black" onclick="toggleBlack('vid')">画面全黑蒙版</button>
       </div>
       <!-- noise -->
@@ -469,12 +471,23 @@ function efxApi(stream) {
 
 // ─── RTSP copy ────────────────────────────────────────────────────────────────
 function copyRtsp(elemId, hintId) {
-  navigator.clipboard.writeText(document.getElementById(elemId).textContent.trim())
-    .then(() => {
-      const h = document.getElementById(hintId);
-      h.classList.add('show');
-      setTimeout(() => h.classList.remove('show'), 1600);
-    });
+  const text = document.getElementById(elemId).textContent.trim();
+  const _showHint = () => {
+    const h = document.getElementById(hintId);
+    if (h) { h.classList.add('show'); setTimeout(() => h.classList.remove('show'), 1600); }
+  };
+  const _fallback = () => {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    try { document.execCommand('copy'); } catch(_) {}
+    document.body.removeChild(ta); _showHint();
+  };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(_showHint).catch(_fallback);
+  } else {
+    _fallback();
+  }
 }
 
 // ─── Webcam stream ────────────────────────────────────────────────────────────
@@ -630,14 +643,37 @@ function scheduleEfx(stream, patch) {
   }, 80);
 }
 
+function _setPanelDisabled(stream, masterOn) {
+  const swKeys = ['noise','blur','occ','bright','cont','color'];
+  for (const sec of swKeys) {
+    const swBtn = document.getElementById(stream+'-'+sec+'-sw');
+    if (!swBtn) continue;
+    swBtn.disabled = !masterOn;
+    const sect = swBtn.closest('.eff-section');
+    if (!sect) continue;
+    const params = sect.querySelector('.eff-params');
+    if (params) {
+      const active = masterOn && swBtn.classList.contains('on');
+      params.querySelectorAll('input, select').forEach(el => el.disabled = !active);
+      params.style.opacity = active ? '' : '0.45';
+    }
+  }
+  const bk = document.getElementById(stream+'-black');
+  if (bk) bk.disabled = !masterOn;
+  const rd = document.getElementById(stream+'-efx-rand');
+  if (rd) rd.disabled = !masterOn;
+}
+
 function toggleEffectAll(stream) {
   const btn = document.getElementById(stream+'-efx-all');
   const isOn = btn.classList.contains('on-green');
-  btn.classList.toggle('on-green', !isOn);
-  btn.textContent = isOn ? '干扰效果: 关' : '干扰效果: 开';
+  const newOn = !isOn;
+  btn.classList.toggle('on-green', newOn);
+  btn.textContent = newOn ? '干扰效果: 开' : '干扰效果: 关';
   const prevBtn = document.getElementById(stream+'-efx-preview');
-  if (prevBtn) prevBtn.disabled = isOn; // disable preview when turning master off
-  scheduleEfx(stream, {all_enabled: !isOn});
+  if (prevBtn) prevBtn.disabled = !newOn;
+  scheduleEfx(stream, {all_enabled: newOn});
+  _setPanelDisabled(stream, newOn);
 }
 
 function toggleEffectPreview(stream) {
@@ -663,6 +699,16 @@ function toggleEffect(stream, effectId) {
   const isOn = btn.classList.contains('on');
   btn.classList.toggle('on', !isOn);
   scheduleEfx(stream, {[apiKey+'_enabled']: !isOn});
+  // Immediately update this section's params disabled state
+  const sect = btn.closest('.eff-section');
+  if (sect) {
+    const params = sect.querySelector('.eff-params');
+    if (params) {
+      const active = !isOn;
+      params.querySelectorAll('input, select').forEach(el => el.disabled = !active);
+      params.style.opacity = active ? '' : '0.45';
+    }
+  }
 }
 
 function updateOccColors(stream) {
@@ -718,11 +764,12 @@ function syncEffectUI(s, c) {
     el.classList.toggle('on-green', on);
     el.textContent = on ? '干扰效果: 开' : '干扰效果: 关';
   };
-  setToggleGreen(s+'-efx-all', c.all_enabled);
+  const masterOn = !!c.all_enabled;
+  setToggleGreen(s+'-efx-all', masterOn);
   // preview toggle
   const prevBtn = document.getElementById(s+'-efx-preview');
   if (prevBtn) {
-    prevBtn.disabled = !c.all_enabled;
+    prevBtn.disabled = !masterOn;
     prevBtn.classList.toggle('on', c.preview_enabled||false);
     prevBtn.textContent = c.preview_enabled ? '干扰预览: 开' : '干扰预览: 关';
   }
@@ -733,6 +780,8 @@ function syncEffectUI(s, c) {
   setToggle(s+'-bright-sw', c.brightness_enabled);
   setToggle(s+'-cont-sw',   c.contrast_enabled);
   setToggle(s+'-color-sw',  c.color_enabled);
+  // Sync all disabled states
+  _setPanelDisabled(s, masterOn);
 
   const setSlider = (id, val) => { const el=document.getElementById(id); if(el) el.value=val; };
   setSlider(s+'-noise-sigma', c.noise_gaussian_sigma);

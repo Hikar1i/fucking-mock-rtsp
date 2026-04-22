@@ -115,10 +115,18 @@ class WebcamStreamer:
             return self._last_preview_jpeg
 
     def _enqueue_preview(self, frame: np.ndarray) -> None:
-        """Runs in thread pool: downscale → JPEG encode → enqueue."""
+        """Runs in thread pool: letterbox → JPEG encode → enqueue."""
         try:
-            small = cv2.resize(frame, (640, 360), interpolation=cv2.INTER_LINEAR)
-            ret, buf = cv2.imencode(".jpg", small, [cv2.IMWRITE_JPEG_QUALITY, 60])
+            target_w, target_h = 640, 360
+            h, w = frame.shape[:2]
+            scale = min(target_w / w, target_h / h)
+            new_w, new_h = int(w * scale), int(h * scale)
+            resized = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+            canvas = np.zeros((target_h, target_w, 3), dtype=np.uint8)
+            x_off = (target_w - new_w) // 2
+            y_off = (target_h - new_h) // 2
+            canvas[y_off:y_off + new_h, x_off:x_off + new_w] = resized
+            ret, buf = cv2.imencode(".jpg", canvas, [cv2.IMWRITE_JPEG_QUALITY, 60])
             if not ret:
                 return
             jpg = buf.tobytes()
@@ -238,6 +246,7 @@ class WebcamStreamer:
             "-i", "pipe:0",
             *encoder_args,
             "-pix_fmt", "yuv420p",
+            "-g", "15",
             "-r", str(self._fps),
             "-f", "rtsp",
             "-rtsp_transport", "tcp",

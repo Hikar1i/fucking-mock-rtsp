@@ -247,10 +247,18 @@ class VideoStreamer:
             return self._last_preview_jpeg
 
     def _enqueue_preview(self, frame: np.ndarray) -> None:
-        """Runs in thread pool: downscale → JPEG encode → enqueue."""
+        """Runs in thread pool: letterbox → JPEG encode → enqueue."""
         try:
-            small = cv2.resize(frame, (640, 360), interpolation=cv2.INTER_LINEAR)
-            ret, buf = cv2.imencode(".jpg", small, [cv2.IMWRITE_JPEG_QUALITY, 60])
+            target_w, target_h = 640, 360
+            h, w = frame.shape[:2]
+            scale = min(target_w / w, target_h / h)
+            new_w, new_h = int(w * scale), int(h * scale)
+            resized = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+            canvas = np.zeros((target_h, target_w, 3), dtype=np.uint8)
+            x_off = (target_w - new_w) // 2
+            y_off = (target_h - new_h) // 2
+            canvas[y_off:y_off + new_h, x_off:x_off + new_w] = resized
+            ret, buf = cv2.imencode(".jpg", canvas, [cv2.IMWRITE_JPEG_QUALITY, 60])
             if not ret:
                 return
             jpg = buf.tobytes()
@@ -314,7 +322,7 @@ class VideoStreamer:
             frame_pos: float = cap.get(cv2.CAP_PROP_POS_FRAMES)
 
             frame_interval = 1.0 / self._out_fps
-            last_frame_time = time.monotonic()
+            next_frame_time = time.monotonic() + frame_interval
 
             # Preview sub-sampling counters
             _prev_counter: int = 0
@@ -431,20 +439,18 @@ class VideoStreamer:
                         preview_frame = effected if self.effects.preview_active else raw
                         self._preview_pool.submit(self._enqueue_preview, preview_frame.copy())
 
-                    # Timing: always deliver at _out_fps regardless of speed
-                    now = time.monotonic()
-                    elapsed = now - last_frame_time
-                    sleep_time = frame_interval - elapsed
+                    # Drift-free timing: schedule next frame relative to fixed baseline
+                    sleep_time = next_frame_time - time.monotonic()
                     if sleep_time > 0:
                         time.sleep(sleep_time)
-                    last_frame_time = time.monotonic()
+                    elif sleep_time < -frame_interval * 2:
+                        # Fallen >2 frames behind (e.g. heavy CV); reset rather than burst
+                        next_frame_time = time.monotonic()
+                    next_frame_time += frame_interval
 
             finally:
                 cap.release()
                 self._kill_ffmpeg()
-
-        with self._frame_lock:
-            self._latest_frame = None
 
     def _start_ffmpeg(self, width: int, height: int, rtsp_url: str) -> subprocess.Popen | None:
         encoder_args = _encoder_args(self._encoder, self._preset, self._bitrate)
@@ -458,6 +464,7 @@ class VideoStreamer:
             *encoder_args,
             "-pix_fmt", "yuv420p",
             "-r", str(self._out_fps),
+            "-g", "15",
             "-f", "rtsp",
             "-rtsp_transport", "tcp",
             rtsp_url,
