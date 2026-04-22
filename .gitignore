@@ -1,5 +1,6 @@
 _dev/
 videos/
+!videos/example.mp4
 images/
 tmp/
 bak/

@@ -32,15 +32,9 @@ def load_config(config_path: str | Path | None = None) -> dict[str, Any]:
 def _resolve_encoder(encoder: str) -> str:
     if encoder != "auto":
         return encoder
-    if sys.platform == "linux":
-        try:
-            result = subprocess.run(
-                ["nvidia-smi"], capture_output=True, timeout=5
-            )
-            if result.returncode == 0:
-                return "h264_nvenc"
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            pass
+    from src.gpu_backend import probe_nvenc
+    if probe_nvenc():
+        return "h264_nvenc"
     return "libx264"
 
 
