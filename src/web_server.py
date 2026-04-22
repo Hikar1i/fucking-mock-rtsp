@@ -32,21 +32,18 @@ def _placeholder_frame(width: int = 640, height: int = 360, text: str = "N/A") -
     return buf.tobytes()
 
 
-async def _mjpeg_generator(
-    get_frame_fn,
-    placeholder_text: str,
-    fps: int = 20,
+async def _mjpeg_generator_bytes(
+    get_jpeg_fn,
+    placeholder_bytes: bytes,
+    fps: int = 12,
 ) -> AsyncGenerator[bytes, None]:
+    """MJPEG generator that consumes pre-encoded JPEG bytes (no re-encoding overhead)."""
     interval = 1.0 / fps
-    placeholder = _placeholder_frame(text=placeholder_text)
     while True:
         start = asyncio.get_event_loop().time()
-        frame = await asyncio.get_event_loop().run_in_executor(None, get_frame_fn)
-        if frame is None:
-            jpg = placeholder
-        else:
-            ret, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
-            jpg = buf.tobytes() if ret else placeholder
+        jpg = await asyncio.get_event_loop().run_in_executor(None, get_jpeg_fn)
+        if jpg is None:
+            jpg = placeholder_bytes
         yield (
             b"--frame\r\n"
             b"Content-Type: image/jpeg\r\n\r\n" + jpg + b"\r\n"
@@ -62,6 +59,18 @@ def create_app(
     video: VideoStreamer,
 ) -> FastAPI:
     app = FastAPI(title="Local Mock RTSP", version="0.1.0")
+
+    # ── IP whitelist middleware ──────────────────────────────────────────────
+    _raw_ips: list[str] = cfg["server"].get("allowed_ips", []) or []
+    if _raw_ips:
+        _allowed_ips: frozenset[str] = frozenset(_raw_ips) | {"127.0.0.1", "::1", "::ffff:127.0.0.1", "localhost"}
+
+        @app.middleware("http")
+        async def _ip_whitelist(request: Request, call_next):
+            host = request.client.host if request.client else ""
+            if host not in _allowed_ips:
+                return JSONResponse({"error": "Forbidden"}, status_code=403)
+            return await call_next(request)
     _jinja = Environment(
         loader=FileSystemLoader(str(_TEMPLATES_DIR)),
         autoescape=select_autoescape(["html"]),
@@ -92,28 +101,17 @@ def create_app(
     # --------------------------------------------------------------- MJPEG streams
     @app.get("/stream/webcam")
     async def stream_webcam():
-        if not webcam.available or not webcam.enabled:
-            async def _placeholder():
-                placeholder = _placeholder_frame(text="Webcam Unavailable")
-                while True:
-                    yield (
-                        b"--frame\r\n"
-                        b"Content-Type: image/jpeg\r\n\r\n" + placeholder + b"\r\n"
-                    )
-                    await asyncio.sleep(1.0)
-            return StreamingResponse(
-                _placeholder(),
-                media_type="multipart/x-mixed-replace; boundary=frame",
-            )
+        placeholder = _placeholder_frame(640, 360, "Webcam Unavailable")
         return StreamingResponse(
-            _mjpeg_generator(webcam.get_latest_frame, "No Webcam Frame", fps=20),
+            _mjpeg_generator_bytes(webcam.get_preview_jpeg, placeholder, fps=webcam.preview_fps),
             media_type="multipart/x-mixed-replace; boundary=frame",
         )
 
     @app.get("/stream/video")
     async def stream_video():
+        placeholder = _placeholder_frame(640, 360, "No Video Frame")
         return StreamingResponse(
-            _mjpeg_generator(video.get_latest_frame, "No Video Frame", fps=20),
+            _mjpeg_generator_bytes(video.get_preview_jpeg, placeholder, fps=video.preview_fps),
             media_type="multipart/x-mixed-replace; boundary=frame",
         )
 

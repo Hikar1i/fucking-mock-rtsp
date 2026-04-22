@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="webcam-available" content="{{ webcam_available | tojson }}">
 <title>Local Mock RTSP Monitor</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -13,15 +14,17 @@ body {
   min-height: 100vh;
   padding: 18px 20px 40px;
 }
+.page-wrap { max-width: 1440px; margin: 0 auto; }
 h1 {
   font-size: 1.35rem; font-weight: 700; color: #1e293b;
   letter-spacing: 0.04em; margin-bottom: 18px;
   display: flex; align-items: center; gap: 10px;
+  max-width: 1440px; margin-left: auto; margin-right: auto;
 }
 h1 .dot { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; display: inline-block; }
 h1 .dot.off { background: #ef4444; }
 
-.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; max-width: 1500px; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; max-width: 1440px; margin: 0 auto; }
 @media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
 
 /* ── card ── */
@@ -51,7 +54,7 @@ h1 .dot.off { background: #ef4444; }
 .rtsp-label { font-size: 0.72rem; font-weight: 700; color: #3b82f6; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.06em; }
 
 /* ── preview ── */
-.preview { width: 100%; aspect-ratio: 16/9; background: #cbd5e1; display: block; object-fit: contain; }
+.preview { width: 100%; aspect-ratio: 16/9; background: #000; display: block; object-fit: contain; }
 .unavailable-overlay {
   width: 100%; aspect-ratio: 16/9; background: #f1f5f9;
   display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; color: #94a3b8;
@@ -126,12 +129,12 @@ select {
 /* ── effect panel ── */
 .effect-panel {
   background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
-  padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 12px;
 }
 .effect-panel-header { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .effect-panel-title { font-size: 0.72rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.1em; flex: 1; }
 /* effect section: toggle header + 2-col params */
-.eff-section { display: flex; flex-direction: column; gap: 4px; }
+.eff-section { display: flex; flex-direction: column; gap: 8px; }
 .eff-hdr { display: flex; align-items: center; gap: 6px; }
 .eff-sw-btn { min-width: 64px; text-align: center; }
 .eff-params {
@@ -167,9 +170,10 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
   background: rgba(255,255,255,0.92); color: #1e293b;
   border: none; border-radius: 50%; cursor: pointer;
   font-size: 0.85rem; display: flex; align-items: center; justify-content: center;
-  transition: background 0.15s; padding: 0;
+  transition: background 0.15s; padding: 0 0 0 2px;
 }
 .vid-pp-btn:hover { background: #fff; }
+.vid-pp-btn:hover:not(:disabled), .vid-pp-btn:active:not(:disabled) { transform: none !important; opacity: 1 !important; }
 .vid-overlay input[type="range"] {
   flex: 1; accent-color: #60a5fa; cursor: pointer;
   height: 3px; min-width: 0;
@@ -179,6 +183,15 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
   color: #fff; white-space: nowrap; flex-shrink: 0;
   text-shadow: 0 1px 3px rgba(0,0,0,0.8);
 }
+
+/* ── preview placeholder (keeps layout when MJPEG disabled) ── */
+.preview-placeholder {
+  width: 100%; aspect-ratio: 16/9; background: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column; gap: 6px; color: #94a3b8;
+}
+.preview-placeholder p { font-size: 0.83rem; }
 
 /* ── random confirm overlay ── */
 #random-confirm {
@@ -215,35 +228,33 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
     <span class="copy-hint" id="wcam-copy">✓ 已复制</span>
   </div>
 
-  {% if webcam_available %}
-    <img class="preview" id="wcam-img" src="/stream/webcam" alt="webcam">
-  {% else %}
-    <div class="unavailable-overlay">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-        <path d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636"/>
-      </svg>
-      <p>本机未检测到摄像头</p>
-    </div>
-  {% endif %}
+  <div id="wcam-preview-area">
+    {% if webcam_available %}
+      <img class="preview" id="wcam-img" src="/stream/webcam" alt="webcam">
+    {% else %}
+      <div class="unavailable-overlay">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636"/>
+        </svg>
+        <p>本机未检测到摄像头</p>
+      </div>
+    {% endif %}
+  </div>
+  <div class="preview-placeholder" id="wcam-preview-ph" style="display:none">
+    <p>已关闭预览显示</p>
+  </div>
 
   <div class="controls">
-    <!-- stream toggle -->
+    <!-- stream + preview toggle -->
     <div class="row">
       {% if webcam_available %}
         <button class="btn-green btn-sm" id="wcam-en-btn" onclick="webcamEnable()">▶ 启用推流</button>
         <button class="btn-red btn-sm"   id="wcam-dis-btn" onclick="webcamDisable()">■ 禁用推流</button>
-        <button class="btn-blue btn-sm" id="wcam-disp-en" onclick="wcamDisplayEnable()" disabled>启用显示</button>
-        <button class="btn-gray btn-sm" id="wcam-disp-dis" onclick="wcamDisplayDisable()">禁用显示</button>
+        <button class="btn-toggle btn-sm on-green" id="wcam-preview-toggle" onclick="wcamPreviewToggle()">预览推流: 开</button>
       {% else %}
         <button class="btn-gray btn-sm" disabled>摄像头不可用</button>
       {% endif %}
     </div>
-
-    {% if webcam_available %}
-    <!-- display toggle -->
-    <div class="row">
-          </div>
-    {% endif %}
 
     <div class="eff-spacer"></div>
     <div class="section-sep"></div>
@@ -252,10 +263,10 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
     <div class="effect-panel" id="wcam-efx-panel">
       <div class="effect-panel-header">
         <span class="effect-panel-title">🎛 干扰效果</span>
-        <button class="btn-toggle" id="wcam-efx-preview" onclick="toggleEffectPreview('wcam')" disabled>预览: 关</button>
-        <button class="btn-toggle" id="wcam-efx-all" onclick="toggleEffectAll('wcam')">总开关: 关</button>
-        <button class="btn-toggle on-amber" onclick="triggerRandom('wcam')">🎲 随机</button>
-        <button class="btn-toggle" id="wcam-black" onclick="toggleBlack('wcam')">⬛ 全黑</button>
+        <button class="btn-toggle" id="wcam-efx-preview" onclick="toggleEffectPreview('wcam')" disabled>干扰预览: 关</button>
+        <button class="btn-toggle" id="wcam-efx-all" onclick="toggleEffectAll('wcam')">干扰效果: 关</button>
+        <button class="btn-toggle on-amber" id="wcam-efx-rand" onclick="triggerRandom('wcam')">生成随机干扰</button>
+        <button class="btn-toggle" id="wcam-black" onclick="toggleBlack('wcam')">画面全黑蒙版</button>
       </div>
       <!-- noise -->
       <div class="eff-section">
@@ -275,7 +286,7 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
       </div>
       <!-- occlusion -->
       <div class="eff-section">
-        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="wcam-occ-sw" onclick="toggleEffect('wcam','occlusion')">遮挡块</button></div>
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="wcam-occ-sw" onclick="toggleEffect('wcam','occ')">遮挡块</button></div>
         <div class="eff-params">
           <div class="eff-param"><span class="eff-lbl">数量</span><input type="range" class="eff-range" id="wcam-occ-cnt" min="1" max="20" step="1" value="3" oninput="setEfxVal('wcam','occlusion_count',+this.value,'wcam-occ-cnt-v')"><span class="eff-val" id="wcam-occ-cnt-v">3</span></div>
           <div class="eff-param"><span class="eff-lbl">最大px</span><input type="range" class="eff-range" id="wcam-occ-sz" min="10" max="200" step="5" value="80" oninput="setEfxVal('wcam','occlusion_max_size',+this.value,'wcam-occ-sz-v')"><span class="eff-val" id="wcam-occ-sz-v">80</span></div>
@@ -285,12 +296,12 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
       </div>
       <!-- brightness -->
       <div class="eff-section">
-        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="wcam-bright-sw" onclick="toggleEffect('wcam','brightness')">亮 度</button></div>
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="wcam-bright-sw" onclick="toggleEffect('wcam','bright')">亮 度</button></div>
         <div class="eff-params"><div class="eff-param span2"><span class="eff-lbl">亮度值</span><input type="range" class="eff-range" id="wcam-bright-v" min="-100" max="100" step="1" value="0" oninput="setEfxVal('wcam','brightness_value',+this.value,'wcam-bright-disp',v=>v>0?'+'+v:v)"><span class="eff-val" id="wcam-bright-disp">0</span></div></div>
       </div>
       <!-- contrast -->
       <div class="eff-section">
-        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="wcam-cont-sw" onclick="toggleEffect('wcam','contrast')">对比度</button></div>
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="wcam-cont-sw" onclick="toggleEffect('wcam','cont')">对比度</button></div>
         <div class="eff-params"><div class="eff-param span2"><span class="eff-lbl">倍率</span><input type="range" class="eff-range" id="wcam-cont-v" min="0.3" max="3.0" step="0.05" value="1.0" oninput="setEfxVal('wcam','contrast_value',+this.value,'wcam-cont-disp',v=>parseFloat(v).toFixed(2)+'×')"><span class="eff-val" id="wcam-cont-disp">1.00×</span></div></div>
       </div>
       <!-- color -->
@@ -319,7 +330,7 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
     <span class="copy-hint" id="vid-copy">✓ 已复制</span>
   </div>
 
-  <div class="vid-preview-wrap">
+  <div class="vid-preview-wrap" id="vid-preview-wrap">
     <img class="preview" id="vid-img" src="/stream/video" alt="video">
     <div class="vid-overlay">
       <button class="vid-pp-btn" id="vid-pp-btn" onclick="videoTogglePlay()" title="播放/暂停 (Space)">▶</button>
@@ -328,12 +339,16 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
       <span class="vid-time-disp" id="vid-time">0:00 / 0:00</span>
     </div>
   </div>
+  <div class="preview-placeholder" id="vid-preview-ph" style="display:none">
+    <p>已关闭预览显示</p>
+  </div>
 
   <div class="controls">
     <!-- streaming + speed + seek (single row) -->
     <div class="row">
       <button class="btn-green btn-sm" id="vid-str-en"  onclick="vidStreamEnable()">▶ 启用推流</button>
       <button class="btn-red btn-sm"   id="vid-str-dis" onclick="vidStreamDisable()">■ 禁用推流</button>
+      <button class="btn-toggle btn-sm on-green" id="vid-preview-toggle" onclick="vidPreviewToggle()">预览推流: 开</button>
       <span style="width:4px"></span>
       <button class="btn-gray btn-sm" onclick="adjustSpeed(-0.1)" title="减速 (S)">−</button>
       <span class="speed-display" id="vid-speed">1.0×</span>
@@ -361,10 +376,10 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
     <div class="effect-panel" id="vid-efx-panel">
       <div class="effect-panel-header">
         <span class="effect-panel-title">🎛 干扰效果</span>
-        <button class="btn-toggle" id="vid-efx-preview" onclick="toggleEffectPreview('vid')" disabled>预览: 关</button>
-        <button class="btn-toggle" id="vid-efx-all" onclick="toggleEffectAll('vid')">总开关: 关</button>
-        <button class="btn-toggle on-amber" onclick="triggerRandom('vid')">🎲 随机</button>
-        <button class="btn-toggle" id="vid-black" onclick="toggleBlack('vid')">⬛ 全黑</button>
+        <button class="btn-toggle" id="vid-efx-preview" onclick="toggleEffectPreview('vid')" disabled>干扰预览: 关</button>
+        <button class="btn-toggle" id="vid-efx-all" onclick="toggleEffectAll('vid')">干扰效果: 关</button>
+        <button class="btn-toggle on-amber" id="vid-efx-rand" onclick="triggerRandom('vid')">生成随机干扰</button>
+        <button class="btn-toggle" id="vid-black" onclick="toggleBlack('vid')">画面全黑蒙版</button>
       </div>
       <!-- noise -->
       <div class="eff-section">
@@ -384,7 +399,7 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
       </div>
       <!-- occlusion -->
       <div class="eff-section">
-        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="vid-occ-sw" onclick="toggleEffect('vid','occlusion')">遮挡块</button></div>
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="vid-occ-sw" onclick="toggleEffect('vid','occ')">遮挡块</button></div>
         <div class="eff-params">
           <div class="eff-param"><span class="eff-lbl">数量</span><input type="range" class="eff-range" id="vid-occ-cnt" min="1" max="20" step="1" value="3" oninput="setEfxVal('vid','occlusion_count',+this.value,'vid-occ-cnt-v')"><span class="eff-val" id="vid-occ-cnt-v">3</span></div>
           <div class="eff-param"><span class="eff-lbl">最大px</span><input type="range" class="eff-range" id="vid-occ-sz" min="10" max="200" step="5" value="80" oninput="setEfxVal('vid','occlusion_max_size',+this.value,'vid-occ-sz-v')"><span class="eff-val" id="vid-occ-sz-v">80</span></div>
@@ -394,12 +409,12 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
       </div>
       <!-- brightness -->
       <div class="eff-section">
-        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="vid-bright-sw" onclick="toggleEffect('vid','brightness')">亮 度</button></div>
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="vid-bright-sw" onclick="toggleEffect('vid','bright')">亮 度</button></div>
         <div class="eff-params"><div class="eff-param span2"><span class="eff-lbl">亮度值</span><input type="range" class="eff-range" id="vid-bright-v" min="-100" max="100" step="1" value="0" oninput="setEfxVal('vid','brightness_value',+this.value,'vid-bright-disp',v=>v>0?'+'+v:v)"><span class="eff-val" id="vid-bright-disp">0</span></div></div>
       </div>
       <!-- contrast -->
       <div class="eff-section">
-        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="vid-cont-sw" onclick="toggleEffect('vid','contrast')">对比度</button></div>
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="vid-cont-sw" onclick="toggleEffect('vid','cont')">对比度</button></div>
         <div class="eff-params"><div class="eff-param span2"><span class="eff-lbl">倍率</span><input type="range" class="eff-range" id="vid-cont-v" min="0.3" max="3.0" step="0.05" value="1.0" oninput="setEfxVal('vid','contrast_value',+this.value,'vid-cont-disp',v=>parseFloat(v).toFixed(2)+'×')"><span class="eff-val" id="vid-cont-disp">1.00×</span></div></div>
       </div>
       <!-- color -->
@@ -431,7 +446,7 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
 // ─── State ────────────────────────────────────────────────────────────────────
 const WCAM = 'wcam', VID = 'vid';
 let _totalSec = 0, _seekDragging = false, _isPlaying = false;
-let _webcamAvail = {{ 'true' if webcam_available else 'false' }};
+let _webcamAvail = document.querySelector('meta[name="webcam-available"]').content === 'true';
 let _randomTarget = null;
 // pending effect patches (debounced)
 let _efxPatch = {wcam:{}, vid:{}};
@@ -456,12 +471,23 @@ function efxApi(stream) {
 
 // ─── RTSP copy ────────────────────────────────────────────────────────────────
 function copyRtsp(elemId, hintId) {
-  navigator.clipboard.writeText(document.getElementById(elemId).textContent.trim())
-    .then(() => {
-      const h = document.getElementById(hintId);
-      h.classList.add('show');
-      setTimeout(() => h.classList.remove('show'), 1600);
-    });
+  const text = document.getElementById(elemId).textContent.trim();
+  const _showHint = () => {
+    const h = document.getElementById(hintId);
+    if (h) { h.classList.add('show'); setTimeout(() => h.classList.remove('show'), 1600); }
+  };
+  const _fallback = () => {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    try { document.execCommand('copy'); } catch(_) {}
+    document.body.removeChild(ta); _showHint();
+  };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(_showHint).catch(_fallback);
+  } else {
+    _fallback();
+  }
 }
 
 // ─── Webcam stream ────────────────────────────────────────────────────────────
@@ -492,21 +518,45 @@ async function videoTogglePlay() {
   else            { await api('/api/video/play'); }
 }
 
-function wcamDisplayEnable() {
-  const img = document.getElementById('wcam-img');
-  if (img) img.style.display = '';
-  const en = document.getElementById('wcam-disp-en');
-  const dis = document.getElementById('wcam-disp-dis');
-  if (en)  en.disabled  = true;
-  if (dis) dis.disabled = false;
+function wcamPreviewToggle() {
+  const btn  = document.getElementById('wcam-preview-toggle');
+  const area = document.getElementById('wcam-preview-area');
+  const ph   = document.getElementById('wcam-preview-ph');
+  const img  = document.getElementById('wcam-img');
+  const isOn = btn.classList.contains('on-green');
+  if (isOn) {
+    if (img) { img._savedSrc = img.src; img.src = ''; }
+    if (area) area.style.display = 'none';
+    if (ph) ph.style.display = '';
+    btn.classList.remove('on-green');
+    btn.textContent = '预览推流: 关';
+  } else {
+    if (img) img.src = img._savedSrc || '/stream/webcam';
+    if (area) area.style.display = '';
+    if (ph) ph.style.display = 'none';
+    btn.classList.add('on-green');
+    btn.textContent = '预览推流: 开';
+  }
 }
-function wcamDisplayDisable() {
-  const img = document.getElementById('wcam-img');
-  if (img) img.style.display = 'none';
-  const en = document.getElementById('wcam-disp-en');
-  const dis = document.getElementById('wcam-disp-dis');
-  if (en)  en.disabled  = false;
-  if (dis) dis.disabled = true;
+function vidPreviewToggle() {
+  const btn  = document.getElementById('vid-preview-toggle');
+  const wrap = document.getElementById('vid-preview-wrap');
+  const ph   = document.getElementById('vid-preview-ph');
+  const img  = document.getElementById('vid-img');
+  const isOn = btn.classList.contains('on-green');
+  if (isOn) {
+    if (img) { img._savedSrc = img.src; img.src = ''; }
+    if (wrap) wrap.style.display = 'none';
+    if (ph) ph.style.display = '';
+    btn.classList.remove('on-green');
+    btn.textContent = '预览推流: 关';
+  } else {
+    if (img) img.src = img._savedSrc || '/stream/video';
+    if (wrap) wrap.style.display = '';
+    if (ph) ph.style.display = 'none';
+    btn.classList.add('on-green');
+    btn.textContent = '预览推流: 开';
+  }
 }
 
 async function adjustSpeed(delta) {
@@ -593,21 +643,44 @@ function scheduleEfx(stream, patch) {
   }, 80);
 }
 
+function _setPanelDisabled(stream, masterOn) {
+  const swKeys = ['noise','blur','occ','bright','cont','color'];
+  for (const sec of swKeys) {
+    const swBtn = document.getElementById(stream+'-'+sec+'-sw');
+    if (!swBtn) continue;
+    swBtn.disabled = !masterOn;
+    const sect = swBtn.closest('.eff-section');
+    if (!sect) continue;
+    const params = sect.querySelector('.eff-params');
+    if (params) {
+      const active = masterOn && swBtn.classList.contains('on');
+      params.querySelectorAll('input, select').forEach(el => el.disabled = !active);
+      params.style.opacity = active ? '' : '0.45';
+    }
+  }
+  const bk = document.getElementById(stream+'-black');
+  if (bk) bk.disabled = !masterOn;
+  const rd = document.getElementById(stream+'-efx-rand');
+  if (rd) rd.disabled = !masterOn;
+}
+
 function toggleEffectAll(stream) {
   const btn = document.getElementById(stream+'-efx-all');
   const isOn = btn.classList.contains('on-green');
-  btn.classList.toggle('on-green', !isOn);
-  btn.textContent = isOn ? '总开关: 关' : '总开关: 开';
+  const newOn = !isOn;
+  btn.classList.toggle('on-green', newOn);
+  btn.textContent = newOn ? '干扰效果: 开' : '干扰效果: 关';
   const prevBtn = document.getElementById(stream+'-efx-preview');
-  if (prevBtn) prevBtn.disabled = isOn; // disable preview when turning master off
-  scheduleEfx(stream, {all_enabled: !isOn});
+  if (prevBtn) prevBtn.disabled = !newOn;
+  scheduleEfx(stream, {all_enabled: newOn});
+  _setPanelDisabled(stream, newOn);
 }
 
 function toggleEffectPreview(stream) {
   const btn = document.getElementById(stream+'-efx-preview');
   const isOn = btn.classList.contains('on');
   btn.classList.toggle('on', !isOn);
-  btn.textContent = isOn ? '预览: 关' : '预览: 开';
+  btn.textContent = isOn ? '干扰预览: 关' : '干扰预览: 开';
   scheduleEfx(stream, {preview_enabled: !isOn});
 }
 
@@ -618,11 +691,24 @@ function toggleBlack(stream) {
   scheduleEfx(stream, {black_screen: !isOn});
 }
 
-function toggleEffect(stream, effect) {
-  const btn = document.getElementById(stream+'-'+effect+'-sw');
+const EFFECT_KEY = {occ: 'occlusion', bright: 'brightness', cont: 'contrast'};
+function toggleEffect(stream, effectId) {
+  const apiKey = EFFECT_KEY[effectId] || effectId;
+  const btn = document.getElementById(stream+'-'+effectId+'-sw');
+  if (!btn) return;
   const isOn = btn.classList.contains('on');
   btn.classList.toggle('on', !isOn);
-  scheduleEfx(stream, {[effect+'_enabled']: !isOn});
+  scheduleEfx(stream, {[apiKey+'_enabled']: !isOn});
+  // Immediately update this section's params disabled state
+  const sect = btn.closest('.eff-section');
+  if (sect) {
+    const params = sect.querySelector('.eff-params');
+    if (params) {
+      const active = !isOn;
+      params.querySelectorAll('input, select').forEach(el => el.disabled = !active);
+      params.style.opacity = active ? '' : '0.45';
+    }
+  }
 }
 
 function updateOccColors(stream) {
@@ -676,15 +762,16 @@ function syncEffectUI(s, c) {
   const setToggleGreen = (id, on) => {
     const el = document.getElementById(id); if(!el) return;
     el.classList.toggle('on-green', on);
-    el.textContent = on ? '总开关: 开' : '总开关: 关';
+    el.textContent = on ? '干扰效果: 开' : '干扰效果: 关';
   };
-  setToggleGreen(s+'-efx-all', c.all_enabled);
+  const masterOn = !!c.all_enabled;
+  setToggleGreen(s+'-efx-all', masterOn);
   // preview toggle
   const prevBtn = document.getElementById(s+'-efx-preview');
   if (prevBtn) {
-    prevBtn.disabled = !c.all_enabled;
+    prevBtn.disabled = !masterOn;
     prevBtn.classList.toggle('on', c.preview_enabled||false);
-    prevBtn.textContent = c.preview_enabled ? '预览: 开' : '预览: 关';
+    prevBtn.textContent = c.preview_enabled ? '干扰预览: 开' : '干扰预览: 关';
   }
   setToggle(s+'-black', c.black_screen);
   setToggle(s+'-noise-sw',  c.noise_enabled);
@@ -693,6 +780,8 @@ function syncEffectUI(s, c) {
   setToggle(s+'-bright-sw', c.brightness_enabled);
   setToggle(s+'-cont-sw',   c.contrast_enabled);
   setToggle(s+'-color-sw',  c.color_enabled);
+  // Sync all disabled states
+  _setPanelDisabled(s, masterOn);
 
   const setSlider = (id, val) => { const el=document.getElementById(id); if(el) el.value=val; };
   setSlider(s+'-noise-sigma', c.noise_gaussian_sigma);

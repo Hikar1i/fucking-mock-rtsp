@@ -127,21 +127,36 @@ def _build_mediamtx_config(cfg: dict[str, Any]) -> str:
     rtsp_port = cfg["server"]["rtsp_port"]
     webcam_path = cfg["webcam"]["rtsp_path"].lstrip("/")
     video_path = cfg["video"]["rtsp_path"].lstrip("/")
+    allowed_ips: list[str] = cfg["server"].get("allowed_ips", []) or []
+    # publishIPs always localhost-only; readIPs extended when whitelist is active
+    _pub_ips = '["127.0.0.1", "::1"]'
+    if allowed_ips:
+        _read_set = list(dict.fromkeys(allowed_ips + ["127.0.0.1", "::1"]))
+        _read_ips = "[" + ", ".join(f'"{ip}"' for ip in _read_set) + "]"
+        _path_cfg = (
+            f"    publishIPs: {_pub_ips}\n"
+            f"    readIPs: {_read_ips}"
+        )
+    else:
+        _path_cfg = f"    publishIPs: {_pub_ips}"
+
     lines = [
         f"rtspAddress: :{rtsp_port}",
         "logLevel: warn",
         "logDestinations: [stdout]",
         "readTimeout: 10s",
         "writeTimeout: 10s",
-        "writeQueueSize: 512",
+        "writeQueueSize: 2048",
         # Disable unused protocols to avoid port conflicts (8888/8889/1935/8890)
         "hls: no",
         "webrtc: no",
         "rtmp: no",
         "srt: no",
         "paths:",
-        f"  {webcam_path}: {{}}",
-        f"  {video_path}: {{}}",
+        f"  {webcam_path}:",
+        _path_cfg,
+        f"  {video_path}:",
+        _path_cfg,
     ]
     return "\n".join(lines) + "\n"
 

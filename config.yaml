@@ -2,12 +2,17 @@ server:
   rtsp_port: 8554
   web_port: 8080
   host: "0.0.0.0"
+  # IP whitelist for web UI and RTSP: empty = allow all; add IPs to restrict.
+  # 127.0.0.1 and ::1 are always allowed regardless of this list.
+  # Example: ["192.168.1.100", "10.0.0.5"]
+  allowed_ips: ["192.168.3.168", "192.168.3.205"]
 
 webcam:
   enabled: true
   device_id: 0
-  width: 1280
-  height: 720
+  # Requested resolution; webcam will use nearest supported mode.
+  width: 1024
+  height: 576
   fps: 25
   rtsp_path: "/webcam"
 
@@ -16,8 +21,8 @@ video:
   default_file: ""
   videos_dir: "videos"
   loop: true
-  width: 1280
-  height: 720
+  width: 1024
+  height: 576
   fps: 25
   rtsp_path: "/video"
 
@@ -28,5 +33,5 @@ mediamtx:
 
 encoding:
   encoder: "auto"
-  bitrate: "2M"
+  bitrate: "1M"
   preset: "ultrafast"
