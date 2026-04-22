@@ -107,13 +107,15 @@ uv run python main.py
 | 用途 | 地址 |
 |------|------|
 | Web 监控页面 | `http://localhost:8080` |
-| 摄像头 RTSP 流 | `rtsp://localhost:8554/webcam` |
-| 视频文件 RTSP 流 | `rtsp://localhost:8554/video` |
+| 摄像头 RTSP 流 | `rtsp://<本机IP>:8554/webcam` |
+| 视频文件 RTSP 流 | `rtsp://<本机IP>:8554/video` |
+
+> Web 页面的 RTSP URL 栏会自动显示本机真实局域网 IP（以太网/WLAN），若同时存在多个网卡则每行显示一个地址，点击即可复制。若未检测到局域网地址则回落至 `localhost`。
 
 RTSP 流可通过 VLC、PotPlayer、ffplay 等播放器打开：
 
 ```bash
-ffplay rtsp://localhost:8554/video
+ffplay rtsp://192.168.3.168:8554/video
 ```
 
 ---
