@@ -32,21 +32,18 @@ def _placeholder_frame(width: int = 640, height: int = 360, text: str = "N/A") -
     return buf.tobytes()
 
 
-async def _mjpeg_generator(
-    get_frame_fn,
-    placeholder_text: str,
-    fps: int = 20,
+async def _mjpeg_generator_bytes(
+    get_jpeg_fn,
+    placeholder_bytes: bytes,
+    fps: int = 12,
 ) -> AsyncGenerator[bytes, None]:
+    """MJPEG generator that consumes pre-encoded JPEG bytes (no re-encoding overhead)."""
     interval = 1.0 / fps
-    placeholder = _placeholder_frame(text=placeholder_text)
     while True:
         start = asyncio.get_event_loop().time()
-        frame = await asyncio.get_event_loop().run_in_executor(None, get_frame_fn)
-        if frame is None:
-            jpg = placeholder
-        else:
-            ret, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
-            jpg = buf.tobytes() if ret else placeholder
+        jpg = await asyncio.get_event_loop().run_in_executor(None, get_jpeg_fn)
+        if jpg is None:
+            jpg = placeholder_bytes
         yield (
             b"--frame\r\n"
             b"Content-Type: image/jpeg\r\n\r\n" + jpg + b"\r\n"
@@ -92,28 +89,17 @@ def create_app(
     # --------------------------------------------------------------- MJPEG streams
     @app.get("/stream/webcam")
     async def stream_webcam():
-        if not webcam.available or not webcam.enabled:
-            async def _placeholder():
-                placeholder = _placeholder_frame(text="Webcam Unavailable")
-                while True:
-                    yield (
-                        b"--frame\r\n"
-                        b"Content-Type: image/jpeg\r\n\r\n" + placeholder + b"\r\n"
-                    )
-                    await asyncio.sleep(1.0)
-            return StreamingResponse(
-                _placeholder(),
-                media_type="multipart/x-mixed-replace; boundary=frame",
-            )
+        placeholder = _placeholder_frame(640, 360, "Webcam Unavailable")
         return StreamingResponse(
-            _mjpeg_generator(webcam.get_latest_frame, "No Webcam Frame", fps=20),
+            _mjpeg_generator_bytes(webcam.get_preview_jpeg, placeholder, fps=webcam.preview_fps),
             media_type="multipart/x-mixed-replace; boundary=frame",
         )
 
     @app.get("/stream/video")
     async def stream_video():
+        placeholder = _placeholder_frame(640, 360, "No Video Frame")
         return StreamingResponse(
-            _mjpeg_generator(video.get_latest_frame, "No Video Frame", fps=20),
+            _mjpeg_generator_bytes(video.get_preview_jpeg, placeholder, fps=video.preview_fps),
             media_type="multipart/x-mixed-replace; boundary=frame",
         )
 

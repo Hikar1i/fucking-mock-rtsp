@@ -1,9 +1,11 @@
 """Video file RTSP streamer with playback control (play/pause/seek/speed/loop)."""
 
 import logging
+import queue
 import subprocess
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -87,8 +89,12 @@ class VideoStreamer:
         self._thread: threading.Thread | None = None
         self._running: bool = False
 
-        self._latest_frame: np.ndarray | None = None
-        self._frame_lock = threading.Lock()
+        # Preview pipeline: downscaled JPEG queue + thread pool for encoding
+        self._preview_fps: int = max(1, self._out_fps // 2)
+        self._preview_queue: queue.Queue = queue.Queue(maxsize=5)
+        self._preview_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="vid-jpeg")
+        self._last_preview_jpeg: bytes | None = None
+        self._preview_jpeg_lock = threading.Lock()
 
         # FFmpeg process — managed inside stream loop but tracked for enable/disable
         self._ffmpeg_proc: subprocess.Popen | None = None
@@ -218,11 +224,48 @@ class VideoStreamer:
         if self._thread:
             self._thread.join(timeout=8)
         self._thread = None
+        self._preview_pool.shutdown(wait=False)
+        with self._preview_jpeg_lock:
+            self._last_preview_jpeg = None
         logger.info("Video streamer stopped.")
 
-    def get_latest_frame(self) -> np.ndarray | None:
-        with self._frame_lock:
-            return self._latest_frame.copy() if self._latest_frame is not None else None
+    @property
+    def preview_fps(self) -> int:
+        return self._preview_fps
+
+    def get_preview_jpeg(self) -> bytes | None:
+        """Return the most recent preview JPEG (bytes). Falls back to last known frame."""
+        try:
+            jpg = self._preview_queue.get_nowait()
+        except queue.Empty:
+            jpg = None
+        if jpg is not None:
+            with self._preview_jpeg_lock:
+                self._last_preview_jpeg = jpg
+            return jpg
+        with self._preview_jpeg_lock:
+            return self._last_preview_jpeg
+
+    def _enqueue_preview(self, frame: np.ndarray) -> None:
+        """Runs in thread pool: downscale → JPEG encode → enqueue."""
+        try:
+            small = cv2.resize(frame, (640, 360), interpolation=cv2.INTER_LINEAR)
+            ret, buf = cv2.imencode(".jpg", small, [cv2.IMWRITE_JPEG_QUALITY, 60])
+            if not ret:
+                return
+            jpg = buf.tobytes()
+            # Drop oldest frames if queue is full (prefer freshest)
+            while self._preview_queue.full():
+                try:
+                    self._preview_queue.get_nowait()
+                except queue.Empty:
+                    break
+            try:
+                self._preview_queue.put_nowait(jpg)
+            except queue.Full:
+                pass
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------ internal
 
@@ -272,6 +315,11 @@ class VideoStreamer:
 
             frame_interval = 1.0 / self._out_fps
             last_frame_time = time.monotonic()
+
+            # Preview sub-sampling counters
+            _prev_counter: int = 0
+            _prev_skip: int = max(1, self._out_fps // self._preview_fps)
+            _prev_gen: int = self.effects.get_generation()
 
             # Start FFmpeg only if streaming is enabled
             if self.state.streaming:
@@ -353,12 +401,9 @@ class VideoStreamer:
                     if src_w != self._out_width or src_h != self._out_height:
                         frame = cv2.resize(frame, (self._out_width, self._out_height))
 
-                    # Apply effects (always for FFmpeg; conditionally for MJPEG)
+                    # Apply effects: full-quality for RTSP
                     raw = frame
                     effected = self.effects.apply(frame.copy())
-
-                    with self._frame_lock:
-                        self._latest_frame = effected if self.effects.preview_active else raw
 
                     # Write to FFmpeg if streaming
                     with self._ffmpeg_lock:
@@ -371,6 +416,20 @@ class VideoStreamer:
                             with self._ffmpeg_lock:
                                 self._ffmpeg_proc = None
                             break
+
+                    # Preview: subsampled + downscaled JPEG via thread pool
+                    _prev_counter += 1
+                    if _prev_counter % _prev_skip == 0:
+                        cur_gen = self.effects.get_generation()
+                        if cur_gen != _prev_gen:
+                            _prev_gen = cur_gen
+                            while not self._preview_queue.empty():
+                                try:
+                                    self._preview_queue.get_nowait()
+                                except queue.Empty:
+                                    break
+                        preview_frame = effected if self.effects.preview_active else raw
+                        self._preview_pool.submit(self._enqueue_preview, preview_frame.copy())
 
                     # Timing: always deliver at _out_fps regardless of speed
                     now = time.monotonic()

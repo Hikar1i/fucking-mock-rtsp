@@ -56,6 +56,7 @@ class EffectProcessor:
         self._occlusion_blocks: list[tuple] = []
         self._last_occlusion_refresh: float = 0.0
         self._saved_cfg: EffectConfig | None = None   # snapshot before all_enabled=False
+        self._generation: int = 0
 
     # ---------------------------------------------------------------------- config
 
@@ -102,11 +103,18 @@ class EffectProcessor:
                     restored.all_enabled = True
                     restored.preview_enabled = current_preview
                     self._cfg = restored
+                    self._generation += 1
                     return
 
             for k, v in data.items():
                 if hasattr(c, k):
                     setattr(c, k, v)
+            self._generation += 1
+
+    def get_generation(self) -> int:
+        """Return a counter incremented on every config change; used for stale-queue detection."""
+        with self._lock:
+            return self._generation
 
     @property
     def preview_active(self) -> bool:

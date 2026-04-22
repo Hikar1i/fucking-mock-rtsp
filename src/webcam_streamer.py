@@ -1,9 +1,11 @@
 """Webcam RTSP streamer: captures local camera and pushes via FFmpeg to MediaMTX."""
 
 import logging
+import queue
 import subprocess
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import cv2
@@ -43,11 +45,16 @@ class WebcamStreamer:
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
 
-        self._latest_frame: np.ndarray | None = None
-        self._frame_lock = threading.Lock()
+        # Preview pipeline: downscaled JPEG queue + thread pool for encoding
+        self._preview_fps: int = max(1, self._fps // 2)
+        self._preview_queue: queue.Queue = queue.Queue(maxsize=5)
+        self._preview_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="wcam-jpeg")
+        self._last_preview_jpeg: bytes | None = None
+        self._preview_jpeg_lock = threading.Lock()
 
         self._ffmpeg_proc: subprocess.Popen | None = None
         self._ffmpeg_lock = threading.Lock()
+        self._wcam_prev_gen: int = 0
 
         self.effects = EffectProcessor()
 
@@ -85,13 +92,47 @@ class WebcamStreamer:
         if self._thread:
             self._thread.join(timeout=5)
         self._thread = None
-        with self._frame_lock:
-            self._latest_frame = None
+        self._preview_pool.shutdown(wait=False)
+        with self._preview_jpeg_lock:
+            self._last_preview_jpeg = None
         logger.info("Webcam streamer stopped.")
 
-    def get_latest_frame(self) -> np.ndarray | None:
-        with self._frame_lock:
-            return self._latest_frame.copy() if self._latest_frame is not None else None
+    @property
+    def preview_fps(self) -> int:
+        return self._preview_fps
+
+    def get_preview_jpeg(self) -> bytes | None:
+        """Return the most recent preview JPEG (bytes). Falls back to last known frame."""
+        try:
+            jpg = self._preview_queue.get_nowait()
+        except queue.Empty:
+            jpg = None
+        if jpg is not None:
+            with self._preview_jpeg_lock:
+                self._last_preview_jpeg = jpg
+            return jpg
+        with self._preview_jpeg_lock:
+            return self._last_preview_jpeg
+
+    def _enqueue_preview(self, frame: np.ndarray) -> None:
+        """Runs in thread pool: downscale → JPEG encode → enqueue."""
+        try:
+            small = cv2.resize(frame, (640, 360), interpolation=cv2.INTER_LINEAR)
+            ret, buf = cv2.imencode(".jpg", small, [cv2.IMWRITE_JPEG_QUALITY, 60])
+            if not ret:
+                return
+            jpg = buf.tobytes()
+            while self._preview_queue.full():
+                try:
+                    self._preview_queue.get_nowait()
+                except queue.Empty:
+                    break
+            try:
+                self._preview_queue.put_nowait(jpg)
+            except queue.Full:
+                pass
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------ internals
 
@@ -155,9 +196,7 @@ class WebcamStreamer:
                     raw = frame
                     effected = self.effects.apply(frame.copy())
 
-                    with self._frame_lock:
-                        self._latest_frame = effected if self.effects.preview_active else raw
-
+                    # Write to FFmpeg if streaming
                     with self._ffmpeg_lock:
                         proc = self._ffmpeg_proc
                     if proc is not None:
@@ -168,12 +207,25 @@ class WebcamStreamer:
                             with self._ffmpeg_lock:
                                 self._ffmpeg_proc = None
                             break
+
+                    # Preview: every frame at native rate (already low due to webcam fps)
+                    cur_gen = self.effects.get_generation()
+                    if cur_gen != self._wcam_prev_gen:
+                        self._wcam_prev_gen = cur_gen
+                        while not self._preview_queue.empty():
+                            try:
+                                self._preview_queue.get_nowait()
+                            except queue.Empty:
+                                break
+                    preview_frame = effected if self.effects.preview_active else raw
+                    self._preview_pool.submit(self._enqueue_preview, preview_frame.copy())
+
             finally:
                 cap.release()
                 self._kill_ffmpeg()
 
-        with self._frame_lock:
-            self._latest_frame = None
+        with self._preview_jpeg_lock:
+            self._last_preview_jpeg = None
 
     def _start_ffmpeg(self, width: int, height: int, rtsp_url: str) -> subprocess.Popen | None:
         encoder_args = _encoder_args(self._encoder, self._preset, self._bitrate)
