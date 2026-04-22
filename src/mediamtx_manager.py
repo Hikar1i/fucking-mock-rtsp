@@ -134,6 +134,11 @@ def _build_mediamtx_config(cfg: dict[str, Any]) -> str:
         "readTimeout: 10s",
         "writeTimeout: 10s",
         "writeQueueSize: 512",
+        # Disable unused protocols to avoid port conflicts (8888/8889/1935/8890)
+        "hls: no",
+        "webrtc: no",
+        "rtmp: no",
+        "srt: no",
         "paths:",
         f"  {webcam_path}: {{}}",
         f"  {video_path}: {{}}",
