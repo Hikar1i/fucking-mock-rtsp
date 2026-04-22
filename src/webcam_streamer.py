@@ -54,6 +54,8 @@ class WebcamStreamer:
 
         self._ffmpeg_proc: subprocess.Popen | None = None
         self._ffmpeg_lock = threading.Lock()
+        self._ffmpeg_write_queue: queue.Queue = queue.Queue(maxsize=4)
+        self._ffmpeg_writer_thread: threading.Thread | None = None
         self._wcam_prev_gen: int = 0
 
         self.effects = EffectProcessor()
@@ -153,20 +155,55 @@ class WebcamStreamer:
         self._thread.start()
         logger.info("Webcam streamer started.")
 
+    def _writer_loop(self, proc: subprocess.Popen) -> None:
+        """Dedicated thread: drains _ffmpeg_write_queue → FFmpeg stdin."""
+        while True:
+            try:
+                data = self._ffmpeg_write_queue.get(timeout=0.5)
+            except queue.Empty:
+                if proc.poll() is not None:
+                    break
+                continue
+            if data is None:
+                break
+            try:
+                proc.stdin.write(data)
+            except (BrokenPipeError, OSError):
+                with self._ffmpeg_lock:
+                    if self._ffmpeg_proc is proc:
+                        self._ffmpeg_proc = None
+                break
+
     def _kill_ffmpeg(self) -> None:
+        # Signal writer thread to stop
+        try:
+            self._ffmpeg_write_queue.put_nowait(None)
+        except queue.Full:
+            while not self._ffmpeg_write_queue.empty():
+                try:
+                    self._ffmpeg_write_queue.get_nowait()
+                except queue.Empty:
+                    break
+            try:
+                self._ffmpeg_write_queue.put_nowait(None)
+            except queue.Full:
+                pass
         with self._ffmpeg_lock:
             proc = self._ffmpeg_proc
             self._ffmpeg_proc = None
-        if proc is None:
-            return
         try:
-            proc.stdin.close()
+            if proc:
+                proc.stdin.close()
         except Exception:
             pass
-        try:
-            proc.wait(timeout=3)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+        if self._ffmpeg_writer_thread:
+            self._ffmpeg_writer_thread.join(timeout=2)
+            self._ffmpeg_writer_thread = None
+        if proc:
+            try:
+                proc.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                proc.kill()
 
     def _stream_loop(self) -> None:
         rtsp_url = f"rtsp://127.0.0.1:{self._rtsp_port}{self._rtsp_path}"
@@ -177,9 +214,13 @@ class WebcamStreamer:
                 time.sleep(3)
                 continue
 
+            # Request configured resolution; webcam uses nearest supported mode
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._width)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._height)
             actual_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or self._width)
             actual_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or self._height)
-            logger.info("Webcam → preview: %dx%d @ %dfps", actual_w, actual_h, self._fps)
+            logger.info("Webcam → RTSP: %dx%d @ %dfps (requested %dx%d)",
+                        actual_w, actual_h, self._fps, self._width, self._height)
 
             try:
                 while not self._stop_event.is_set():
@@ -209,12 +250,9 @@ class WebcamStreamer:
                         proc = self._ffmpeg_proc
                     if proc is not None:
                         try:
-                            proc.stdin.write(effected.tobytes())
-                        except (BrokenPipeError, OSError):
-                            logger.warning("Webcam FFmpeg pipe broken; restarting...")
-                            with self._ffmpeg_lock:
-                                self._ffmpeg_proc = None
-                            break
+                            self._ffmpeg_write_queue.put_nowait(effected.tobytes())
+                        except queue.Full:
+                            pass  # Drop frame: backpressured, never block stream loop
 
                     # Preview: every frame at native rate (already low due to webcam fps)
                     cur_gen = self.effects.get_generation()
@@ -253,10 +291,17 @@ class WebcamStreamer:
             rtsp_url,
         ]
         try:
-            return subprocess.Popen(
+            proc = subprocess.Popen(
                 cmd, stdin=subprocess.PIPE,
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
+            # Fresh write queue + dedicated non-blocking writer thread
+            self._ffmpeg_write_queue = queue.Queue(maxsize=4)
+            t = threading.Thread(target=self._writer_loop, args=(proc,),
+                                 daemon=True, name="wcam-ffmpeg-wr")
+            t.start()
+            self._ffmpeg_writer_thread = t
+            return proc
         except FileNotFoundError:
             logger.error("ffmpeg not found in PATH")
             return None

@@ -59,6 +59,18 @@ def create_app(
     video: VideoStreamer,
 ) -> FastAPI:
     app = FastAPI(title="Local Mock RTSP", version="0.1.0")
+
+    # ── IP whitelist middleware ──────────────────────────────────────────────
+    _raw_ips: list[str] = cfg["server"].get("allowed_ips", []) or []
+    if _raw_ips:
+        _allowed_ips: frozenset[str] = frozenset(_raw_ips) | {"127.0.0.1", "::1", "::ffff:127.0.0.1", "localhost"}
+
+        @app.middleware("http")
+        async def _ip_whitelist(request: Request, call_next):
+            host = request.client.host if request.client else ""
+            if host not in _allowed_ips:
+                return JSONResponse({"error": "Forbidden"}, status_code=403)
+            return await call_next(request)
     _jinja = Environment(
         loader=FileSystemLoader(str(_TEMPLATES_DIR)),
         autoescape=select_autoescape(["html"]),

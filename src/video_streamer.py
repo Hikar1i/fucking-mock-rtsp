@@ -99,6 +99,8 @@ class VideoStreamer:
         # FFmpeg process — managed inside stream loop but tracked for enable/disable
         self._ffmpeg_proc: subprocess.Popen | None = None
         self._ffmpeg_lock = threading.Lock()
+        self._ffmpeg_write_queue: queue.Queue = queue.Queue(maxsize=4)
+        self._ffmpeg_writer_thread: threading.Thread | None = None
 
         default_file = cfg["video"].get("default_file", "")
         if default_file:
@@ -277,20 +279,54 @@ class VideoStreamer:
 
     # ------------------------------------------------------------------ internal
 
+    def _writer_loop(self, proc: subprocess.Popen) -> None:
+        """Dedicated thread: drains _ffmpeg_write_queue → FFmpeg stdin."""
+        while True:
+            try:
+                data = self._ffmpeg_write_queue.get(timeout=0.5)
+            except queue.Empty:
+                if proc.poll() is not None:
+                    break
+                continue
+            if data is None:
+                break
+            try:
+                proc.stdin.write(data)
+            except (BrokenPipeError, OSError):
+                with self._ffmpeg_lock:
+                    if self._ffmpeg_proc is proc:
+                        self._ffmpeg_proc = None
+                break
+
     def _kill_ffmpeg(self) -> None:
+        try:
+            self._ffmpeg_write_queue.put_nowait(None)
+        except queue.Full:
+            while not self._ffmpeg_write_queue.empty():
+                try:
+                    self._ffmpeg_write_queue.get_nowait()
+                except queue.Empty:
+                    break
+            try:
+                self._ffmpeg_write_queue.put_nowait(None)
+            except queue.Full:
+                pass
         with self._ffmpeg_lock:
             proc = self._ffmpeg_proc
             self._ffmpeg_proc = None
-        if proc is None:
-            return
         try:
-            proc.stdin.close()
+            if proc:
+                proc.stdin.close()
         except Exception:
             pass
-        try:
-            proc.wait(timeout=3)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+        if self._ffmpeg_writer_thread:
+            self._ffmpeg_writer_thread.join(timeout=2)
+            self._ffmpeg_writer_thread = None
+        if proc:
+            try:
+                proc.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                proc.kill()
 
     def _stream_loop(self) -> None:
         rtsp_url = f"rtsp://127.0.0.1:{self._rtsp_port}{self._rtsp_path}"
@@ -329,19 +365,24 @@ class VideoStreamer:
             _prev_skip: int = max(1, self._out_fps // self._preview_fps)
             _prev_gen: int = self.effects.get_generation()
 
-            # Start FFmpeg only if streaming is enabled
-            if self.state.streaming:
+            # Start FFmpeg only if streaming is enabled AND not already running
+            # (kept alive from previous video for seamless transitions)
+            with self._ffmpeg_lock:
+                _proc_alive = self._ffmpeg_proc is not None and self._ffmpeg_proc.poll() is None
+            if self.state.streaming and not _proc_alive:
                 proc = self._start_ffmpeg(self._out_width, self._out_height, rtsp_url)
                 with self._ffmpeg_lock:
                     self._ffmpeg_proc = proc
                 if proc:
                     logger.info("Video → RTSP: %s → %s", Path(file_path).name, rtsp_url)
 
+            _keep_ffmpeg = False  # set True on seamless transitions
             try:
                 while not self._stop_event.is_set():
-                    # File changed → restart outer loop
+                    # File changed → keep FFmpeg alive, reload outer loop
                     if file_path != self.state.file_path:
                         logger.info("Video file changed; reloading.")
+                        _keep_ffmpeg = True
                         break
 
                     # Streaming toggle: start/stop FFmpeg as needed
@@ -362,10 +403,10 @@ class VideoStreamer:
                         cap.set(cv2.CAP_PROP_POS_MSEC, seek_to * 1000)
                         frame_pos = cap.get(cv2.CAP_PROP_POS_FRAMES)
 
-                    # Paused → wait
+                    # Paused → wait; reset drift timer on resume so no burst
                     if not self.state.playing:
                         self._play_event.wait(timeout=0.5)
-                        last_frame_time = time.monotonic()
+                        next_frame_time = time.monotonic() + frame_interval
                         continue
 
                     # Speed: advance frame position by speed factor
@@ -386,9 +427,11 @@ class VideoStreamer:
                             if nxt:
                                 logger.info("Playlist: next video → %s", Path(nxt).name)
                                 self.state.file_path = nxt
+                                _keep_ffmpeg = True  # seamless: keep FFmpeg alive
                                 break
                             else:
-                                # Single video in list → rewind
+                                # Single video in list → rewind seamlessly
+                                _keep_ffmpeg = True
                                 frame_pos = 0.0
                                 cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                                 continue
@@ -413,17 +456,14 @@ class VideoStreamer:
                     raw = frame
                     effected = self.effects.apply(frame.copy())
 
-                    # Write to FFmpeg if streaming
+                    # Write to FFmpeg via async queue (non-blocking: drop if full)
                     with self._ffmpeg_lock:
                         proc = self._ffmpeg_proc
                     if proc is not None:
                         try:
-                            proc.stdin.write(effected.tobytes())
-                        except (BrokenPipeError, OSError):
-                            logger.warning("FFmpeg pipe broken; restarting...")
-                            with self._ffmpeg_lock:
-                                self._ffmpeg_proc = None
-                            break
+                            self._ffmpeg_write_queue.put_nowait(effected.tobytes())
+                        except queue.Full:
+                            pass  # Drop frame: encoder/network backpressured
 
                     # Preview: subsampled + downscaled JPEG via thread pool
                     _prev_counter += 1
@@ -450,7 +490,16 @@ class VideoStreamer:
 
             finally:
                 cap.release()
-                self._kill_ffmpeg()
+                if _keep_ffmpeg and self.state.streaming and not self._stop_event.is_set():
+                    # Bridge transition with a few black frames (no stream disconnect)
+                    _black = np.zeros((self._out_height, self._out_width, 3), dtype=np.uint8).tobytes()
+                    for _ in range(3):
+                        try:
+                            self._ffmpeg_write_queue.put_nowait(_black)
+                        except queue.Full:
+                            break
+                else:
+                    self._kill_ffmpeg()
 
     def _start_ffmpeg(self, width: int, height: int, rtsp_url: str) -> subprocess.Popen | None:
         encoder_args = _encoder_args(self._encoder, self._preset, self._bitrate)
@@ -476,6 +525,12 @@ class VideoStreamer:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
+            # Fresh write queue + dedicated non-blocking writer thread
+            self._ffmpeg_write_queue = queue.Queue(maxsize=4)
+            t = threading.Thread(target=self._writer_loop, args=(proc,),
+                                 daemon=True, name="vid-ffmpeg-wr")
+            t.start()
+            self._ffmpeg_writer_thread = t
             return proc
         except FileNotFoundError:
             logger.error("ffmpeg not found in PATH")
