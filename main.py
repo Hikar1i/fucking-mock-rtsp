@@ -13,6 +13,7 @@ from src.config import load_config
 from src.mediamtx_manager import MediaMTXManager
 from src.webcam_streamer import WebcamStreamer
 from src.video_streamer import VideoStreamer
+from src.rtsp_proxy_streamer import RtspProxyStreamer
 from src.web_server import create_app
 
 
@@ -47,9 +48,21 @@ def _setup_logging(base_dir: Path) -> None:
 logger = logging.getLogger(__name__)
 
 
+def _validate_config(cfg: dict) -> None:
+    webcam_on = cfg.get("webcam", {}).get("enabled", True)
+    video_on  = cfg.get("video",  {}).get("enabled", True)
+    proxy_on  = cfg.get("rtsp_proxy", {}).get("enabled", False)
+    if not (webcam_on or video_on or proxy_on):
+        sys.exit(
+            "ERROR: All sources are disabled (webcam.enabled, video.enabled, "
+            "rtsp_proxy.enabled are all false). Enable at least one source."
+        )
+
+
 def main() -> None:
     cfg = load_config()
     _setup_logging(Path(cfg["_base_dir"]))
+    _validate_config(cfg)
 
     logger.info("=== Local Mock RTSP ===")
     logger.info("Encoder: %s", cfg["encoding"]["encoder"])
@@ -58,8 +71,14 @@ def main() -> None:
     webcam = WebcamStreamer(cfg)
     video = VideoStreamer(cfg)
 
+    proxy: RtspProxyStreamer | None = None
+    if cfg.get("rtsp_proxy", {}).get("enabled", False):
+        proxy = RtspProxyStreamer(cfg)
+
     def shutdown(sig=None, frame=None):
         logger.info("Shutting down...")
+        if proxy:
+            proxy.stop()
         video.stop()
         webcam.stop()
         mtx.stop()
@@ -82,7 +101,11 @@ def main() -> None:
     logger.info("Starting webcam streamer...")
     webcam.start()
 
-    app = create_app(cfg, webcam, video)
+    if proxy:
+        logger.info("Starting RTSP proxy streamer...")
+        proxy.start()
+
+    app = create_app(cfg, webcam, video, proxy)
 
     host = cfg["server"]["host"]
     port = cfg["server"]["web_port"]
@@ -92,6 +115,11 @@ def main() -> None:
         cfg["server"]["rtsp_port"], cfg["webcam"]["rtsp_path"],
         cfg["server"]["rtsp_port"], cfg["video"]["rtsp_path"],
     )
+    if proxy:
+        logger.info(
+            "RTSP proxy:   rtsp://localhost:%d%s",
+            cfg["server"]["rtsp_port"], cfg["rtsp_proxy"]["rtsp_path"],
+        )
 
     try:
         uvicorn.run(app, host=host, port=port, log_level="warning")
