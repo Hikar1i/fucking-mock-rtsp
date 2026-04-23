@@ -24,11 +24,21 @@ h1 {
 h1 .dot { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; display: inline-block; }
 h1 .dot.off { background: #ef4444; }
 
-.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; max-width: 1440px; margin: 0 auto; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; max-width: 1440px; margin: 0 auto; align-items: start; }
 @media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
 
 /* ── card ── */
 .card { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.06); overflow: hidden; display: flex; flex-direction: column; }
+.card.collapsed .card-body { display: none; }
+.card.collapsed .card-header { border-bottom: none; }
+/* collapse toggle button */
+.header-left { display: flex; align-items: center; gap: 8px; }
+.collapse-btn {
+  background: none; border: 1px solid #e2e8f0; border-radius: 4px;
+  cursor: pointer; font-size: 0.68rem; color: #94a3b8;
+  padding: 2px 5px; line-height: 1.4; transition: all 0.15s; user-select: none; flex-shrink: 0;
+}
+.collapse-btn:hover { color: #475569; background: #f1f5f9; border-color: #cbd5e1; }
 .card-header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 11px 16px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;
@@ -194,9 +204,16 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
   flex-direction: column; gap: 6px; color: #94a3b8;
 }
 .preview-placeholder p { font-size: 0.83rem; }
+/* preview disabled (web_preview: false) */
+.preview-disabled {
+  width: 100%; aspect-ratio: 16/9; background: #0f172a;
+  border-bottom: 1px solid #1e293b;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+}
+.preview-disabled .pd-icon { font-size: 2.2rem; opacity: 0.35; }
+.preview-disabled .pd-msg { font-size: 0.82rem; color: #64748b; text-align: center; line-height: 1.6; }
+.preview-disabled code { background: #1e293b; padding: 1px 6px; border-radius: 4px; font-family: monospace; color: #38bdf8; font-size: 0.8rem; }
 
-/* ── proxy card: always first column of its row ── */
-.card.proxy-card { grid-column: 1 / 2; }
 .source-url-disp {
   font-size: 0.73rem; font-family: 'Courier New', monospace; color: #475569;
   flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -224,12 +241,16 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
 <div class="grid">
 
 <!-- ========== WEBCAM CARD ========== -->
+{% if webcam_enabled %}
 <div class="card">
   <div class="card-header">
-    <span class="card-title">📷 本地摄像头</span>
+    <div class="header-left">
+      <button class="collapse-btn" title="折叠/展开" onclick="toggleCollapse(this)">▼</button>
+      <span class="card-title">📷 本地摄像头</span>
+    </div>
     <span class="badge" id="wcam-badge">...</span>
   </div>
-
+<div class="card-body">
   <!-- RTSP URL bar -->
   <div class="rtsp-bar">
     <span class="rtsp-label">RTSP</span>
@@ -245,6 +266,7 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
     </div>
   </div>
 
+  {% if webcam_web_preview %}
   <div id="wcam-preview-area">
     {% if webcam_available %}
       <img class="preview" id="wcam-img" src="/stream/webcam" alt="webcam">
@@ -260,6 +282,12 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
   <div class="preview-placeholder" id="wcam-preview-ph" style="display:none">
     <p>已关闭预览显示</p>
   </div>
+  {% else %}
+  <div class="preview-disabled">
+    <span class="pd-icon">🚫</span>
+    <div class="pd-msg">未启用网页预览<br><code>webcam.web_preview: true</code> 可在配置中开启</div>
+  </div>
+  {% endif %}
 
   <div class="controls">
     <!-- stream + preview toggle -->
@@ -267,7 +295,10 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
       {% if webcam_available %}
         <button class="btn-green btn-sm" id="wcam-en-btn" onclick="webcamEnable()">▶ 启用推流</button>
         <button class="btn-red btn-sm"   id="wcam-dis-btn" onclick="webcamDisable()">■ 禁用推流</button>
-        <button class="btn-toggle btn-sm on-green" id="wcam-preview-toggle" onclick="wcamPreviewToggle()">预览推流: 开</button>
+        <button class="btn-toggle btn-sm on-green" id="wcam-preview-toggle"
+          onclick="wcamPreviewToggle()"
+          {% if not webcam_web_preview %}disabled title="网页预览已在配置中禁用"{% endif %}
+        >预览推流: {{ '开' if webcam_web_preview else '已禁用' }}</button>
       {% else %}
         <button class="btn-gray btn-sm" disabled>摄像头不可用</button>
       {% endif %}
@@ -280,7 +311,9 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
     <div class="effect-panel" id="wcam-efx-panel">
       <div class="effect-panel-header">
         <span class="effect-panel-title">🎛 干扰效果</span>
-        <button class="btn-toggle" id="wcam-efx-preview" onclick="toggleEffectPreview('wcam')" disabled>干扰预览: 关</button>
+        <button class="btn-toggle" id="wcam-efx-preview" onclick="toggleEffectPreview('wcam')"
+          {% if not webcam_web_preview %}disabled title="网页预览已在配置中禁用"{% else %}disabled{% endif %}
+        >干扰预览: {{ '已禁用' if not webcam_web_preview else '关' }}</button>
         <button class="btn-toggle" id="wcam-efx-all" onclick="toggleEffectAll('wcam')">干扰效果: 关</button>
         <button class="btn-toggle on-amber" id="wcam-efx-rand" onclick="triggerRandom('wcam')">生成随机干扰</button>
         <button class="btn-toggle" id="wcam-black" onclick="toggleBlack('wcam')">画面全黑蒙版</button>
@@ -331,15 +364,21 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
       </div>
     </div><!-- /effect-panel -->
   </div>
+</div><!-- /card-body -->
 </div><!-- /webcam card -->
+{% endif %}
 
 <!-- ========== VIDEO CARD ========== -->
+{% if video_enabled %}
 <div class="card">
   <div class="card-header">
-    <span class="card-title">🎬 视频文件</span>
+    <div class="header-left">
+      <button class="collapse-btn" title="折叠/展开" onclick="toggleCollapse(this)">▼</button>
+      <span class="card-title">🎬 视频文件</span>
+    </div>
     <span class="badge" id="vid-badge">...</span>
   </div>
-
+<div class="card-body">
   <!-- RTSP URL bar -->
   <div class="rtsp-bar">
     <span class="rtsp-label">RTSP</span>
@@ -355,6 +394,7 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
     </div>
   </div>
 
+  {% if video_web_preview %}
   <div class="vid-preview-wrap" id="vid-preview-wrap">
     <img class="preview" id="vid-img" src="/stream/video" alt="video">
     <div class="vid-overlay">
@@ -367,13 +407,22 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
   <div class="preview-placeholder" id="vid-preview-ph" style="display:none">
     <p>已关闭预览显示</p>
   </div>
+  {% else %}
+  <div class="preview-disabled">
+    <span class="pd-icon">🚫</span>
+    <div class="pd-msg">未启用网页预览<br><code>video.web_preview: true</code> 可在配置中开启</div>
+  </div>
+  {% endif %}
 
   <div class="controls">
     <!-- streaming + speed + seek (single row) -->
     <div class="row">
       <button class="btn-green btn-sm" id="vid-str-en"  onclick="vidStreamEnable()">▶ 启用推流</button>
       <button class="btn-red btn-sm"   id="vid-str-dis" onclick="vidStreamDisable()">■ 禁用推流</button>
-      <button class="btn-toggle btn-sm on-green" id="vid-preview-toggle" onclick="vidPreviewToggle()">预览推流: 开</button>
+      <button class="btn-toggle btn-sm on-green" id="vid-preview-toggle"
+        onclick="vidPreviewToggle()"
+        {% if not video_web_preview %}disabled title="网页预览已在配置中禁用"{% endif %}
+      >预览推流: {{ '已禁用' if not video_web_preview else '开' }}</button>
       <span style="width:4px"></span>
       <button class="btn-gray btn-sm" onclick="adjustSpeed(-0.1)" title="减速 (S)">−</button>
       <span class="speed-display" id="vid-speed">1.0×</span>
@@ -401,7 +450,9 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
     <div class="effect-panel" id="vid-efx-panel">
       <div class="effect-panel-header">
         <span class="effect-panel-title">🎛 干扰效果</span>
-        <button class="btn-toggle" id="vid-efx-preview" onclick="toggleEffectPreview('vid')" disabled>干扰预览: 关</button>
+        <button class="btn-toggle" id="vid-efx-preview" onclick="toggleEffectPreview('vid')"
+          {% if not video_web_preview %}disabled title="网页预览已在配置中禁用"{% else %}disabled{% endif %}
+        >干扰预览: {{ '已禁用' if not video_web_preview else '关' }}</button>
         <button class="btn-toggle" id="vid-efx-all" onclick="toggleEffectAll('vid')">干扰效果: 关</button>
         <button class="btn-toggle on-amber" id="vid-efx-rand" onclick="triggerRandom('vid')">生成随机干扰</button>
         <button class="btn-toggle" id="vid-black" onclick="toggleBlack('vid')">画面全黑蒙版</button>
@@ -452,16 +503,21 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
       </div>
     </div><!-- /effect-panel -->
   </div>
+</div><!-- /card-body -->
 </div><!-- /video card -->
+{% endif %}
 
 {% if proxy_enabled %}
 <!-- ========== PROXY CARD ========== -->
 <div class="card proxy-card">
   <div class="card-header">
-    <span class="card-title">🔗 真实RTSP代理</span>
+    <div class="header-left">
+      <button class="collapse-btn" title="折叠/展开" onclick="toggleCollapse(this)">▼</button>
+      <span class="card-title">🔗 真实RTSP代理</span>
+    </div>
     <span class="badge badge-yellow" id="pxy-badge">连接中</span>
   </div>
-
+<div class="card-body">
   <!-- RTSP output URL bar -->
   <div class="rtsp-bar">
     <span class="rtsp-label">RTSP</span>
@@ -477,19 +533,29 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
     </div>
   </div>
 
+  {% if proxy_web_preview %}
   <div class="vid-preview-wrap" id="pxy-preview-wrap">
     <img class="preview" id="pxy-img" src="/stream/proxy" alt="proxy">
   </div>
   <div class="preview-placeholder" id="pxy-preview-ph" style="display:none">
     <p>已关闭预览显示</p>
   </div>
+  {% else %}
+  <div class="preview-disabled">
+    <span class="pd-icon">🚫</span>
+    <div class="pd-msg">未启用网页预览<br><code>rtsp_proxy.web_preview: true</code> 可在配置中开启</div>
+  </div>
+  {% endif %}
 
   <div class="controls">
     <!-- streaming + preview + reconnect -->
     <div class="row">
       <button class="btn-green btn-sm" id="pxy-str-en"  onclick="proxyStreamEnable()">▶ 启用推流</button>
       <button class="btn-red btn-sm"   id="pxy-str-dis" onclick="proxyStreamDisable()">■ 禁用推流</button>
-      <button class="btn-toggle btn-sm on-green" id="pxy-preview-toggle" onclick="proxyPreviewToggle()">预览推流: 开</button>
+      <button class="btn-toggle btn-sm on-green" id="pxy-preview-toggle"
+        onclick="proxyPreviewToggle()"
+        {% if not proxy_web_preview %}disabled title="网页预览已在配置中禁用"{% endif %}
+      >预览推流: {{ '已禁用' if not proxy_web_preview else '开' }}</button>
       <button class="btn-amber btn-sm" id="pxy-reconnect" onclick="proxyReconnect()">⟳ 重连</button>
     </div>
 
@@ -506,7 +572,9 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
     <div class="effect-panel" id="pxy-efx-panel">
       <div class="effect-panel-header">
         <span class="effect-panel-title">🎛 干扰效果</span>
-        <button class="btn-toggle" id="pxy-efx-preview" onclick="toggleEffectPreview('pxy')" disabled>干扰预览: 关</button>
+        <button class="btn-toggle" id="pxy-efx-preview" onclick="toggleEffectPreview('pxy')"
+          {% if not proxy_web_preview %}disabled title="网页预览已在配置中禁用"{% else %}disabled{% endif %}
+        >干扰预览: {{ '已禁用' if not proxy_web_preview else '关' }}</button>
         <button class="btn-toggle" id="pxy-efx-all" onclick="toggleEffectAll('pxy')">干扰效果: 关</button>
         <button class="btn-toggle on-amber" id="pxy-efx-rand" onclick="triggerRandom('pxy')">生成随机干扰</button>
         <button class="btn-toggle" id="pxy-black" onclick="toggleBlack('pxy')">画面全黑蒙版</button>
@@ -557,6 +625,7 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
       </div>
     </div><!-- /effect-panel -->
   </div>
+</div><!-- /card-body -->
 </div><!-- /proxy card -->
 {% endif %}
 
@@ -576,9 +645,21 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
 <script>
 // ─── State ────────────────────────────────────────────────────────────────────
 const WCAM = 'wcam', VID = 'vid', PXY = 'pxy';
+const _WEB_PREVIEW = {
+  wcam: {{ webcam_web_preview | tojson }},
+  vid:  {{ video_web_preview  | tojson }},
+  pxy:  {{ proxy_web_preview  | tojson }},
+};
 let _totalSec = 0, _seekDragging = false, _isPlaying = false;
 let _webcamAvail = document.querySelector('meta[name="webcam-available"]').content === 'true';
 let _randomTarget = null;
+
+// ─── Collapse / expand card ────────────────────────────────────────────────────
+function toggleCollapse(btn) {
+  const card = btn.closest('.card');
+  const collapsed = card.classList.toggle('collapsed');
+  btn.textContent = collapsed ? '▶' : '▼';
+}
 // pending effect patches (debounced)
 let _efxPatch = {wcam:{}, vid:{}, pxy:{}};
 let _efxTimer = {wcam:null, vid:null, pxy:null};
@@ -652,6 +733,7 @@ async function videoTogglePlay() {
 }
 
 function wcamPreviewToggle() {
+  if (!_WEB_PREVIEW[WCAM]) return;
   const btn  = document.getElementById('wcam-preview-toggle');
   const area = document.getElementById('wcam-preview-area');
   const ph   = document.getElementById('wcam-preview-ph');
@@ -672,6 +754,7 @@ function wcamPreviewToggle() {
   }
 }
 function vidPreviewToggle() {
+  if (!_WEB_PREVIEW[VID]) return;
   const btn  = document.getElementById('vid-preview-toggle');
   const wrap = document.getElementById('vid-preview-wrap');
   const ph   = document.getElementById('vid-preview-ph');
@@ -750,8 +833,10 @@ function updateVideoUI(d) {
   if (!_seekDragging) {
     const cur = d.current_seconds || 0;
     const pct = _totalSec > 0 ? (cur/_totalSec)*100 : 0;
-    document.getElementById('vid-progress').value = pct;
-    document.getElementById('vid-time').textContent = `${fmtTime(cur)} / ${fmtTime(_totalSec)}`;
+    const prog = document.getElementById('vid-progress');
+    const timeEl = document.getElementById('vid-time');
+    if (prog) prog.value = pct;
+    if (timeEl) timeEl.textContent = `${fmtTime(cur)} / ${fmtTime(_totalSec)}`;
   }
   const sel = document.getElementById('vid-select');
   if (sel && d.file_name && sel.value !== d.file_name) {
@@ -804,12 +889,13 @@ function toggleEffectAll(stream) {
   btn.classList.toggle('on-green', newOn);
   btn.textContent = newOn ? '干扰效果: 开' : '干扰效果: 关';
   const prevBtn = document.getElementById(stream+'-efx-preview');
-  if (prevBtn) prevBtn.disabled = !newOn;
+  if (prevBtn) prevBtn.disabled = !newOn || !_WEB_PREVIEW[stream];
   scheduleEfx(stream, {all_enabled: newOn});
   _setPanelDisabled(stream, newOn);
 }
 
 function toggleEffectPreview(stream) {
+  if (!_WEB_PREVIEW[stream]) return;
   const btn = document.getElementById(stream+'-efx-preview');
   const isOn = btn.classList.contains('on');
   btn.classList.toggle('on', !isOn);
@@ -899,12 +985,17 @@ function syncEffectUI(s, c) {
   };
   const masterOn = !!c.all_enabled;
   setToggleGreen(s+'-efx-all', masterOn);
-  // preview toggle
+  // preview toggle — always disabled if web_preview is off for this stream
   const prevBtn = document.getElementById(s+'-efx-preview');
   if (prevBtn) {
-    prevBtn.disabled = !masterOn;
-    prevBtn.classList.toggle('on', c.preview_enabled||false);
-    prevBtn.textContent = c.preview_enabled ? '干扰预览: 开' : '干扰预览: 关';
+    if (!_WEB_PREVIEW[s]) {
+      prevBtn.disabled = true;
+      prevBtn.textContent = '干扰预览: 已禁用';
+    } else {
+      prevBtn.disabled = !masterOn;
+      prevBtn.classList.toggle('on', c.preview_enabled||false);
+      prevBtn.textContent = c.preview_enabled ? '干扰预览: 开' : '干扰预览: 关';
+    }
   }
   setToggle(s+'-black', c.black_screen);
   setToggle(s+'-noise-sw',  c.noise_enabled);
@@ -960,6 +1051,7 @@ async function proxyReconnect() {
 }
 
 function proxyPreviewToggle() {
+  if (!_WEB_PREVIEW[PXY]) return;
   const btn  = document.getElementById('pxy-preview-toggle');
   const wrap = document.getElementById('pxy-preview-wrap');
   const ph   = document.getElementById('pxy-preview-ph');

@@ -45,6 +45,8 @@ class WebcamStreamer:
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
 
+        self._web_preview: bool = bool(cfg["webcam"].get("web_preview", True))
+
         # Preview pipeline: downscaled JPEG queue + thread pool for encoding
         self._preview_fps: int = max(1, self._fps // 2)
         self._preview_queue: queue.Queue = queue.Queue(maxsize=5)
@@ -264,7 +266,8 @@ class WebcamStreamer:
                             except queue.Empty:
                                 break
                     preview_frame = effected if self.effects.preview_active else raw
-                    self._preview_pool.submit(self._enqueue_preview, preview_frame.copy())
+                    if self._web_preview:
+                        self._preview_pool.submit(self._enqueue_preview, preview_frame.copy())
 
             finally:
                 cap.release()

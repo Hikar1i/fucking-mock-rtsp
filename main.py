@@ -48,9 +48,21 @@ def _setup_logging(base_dir: Path) -> None:
 logger = logging.getLogger(__name__)
 
 
+def _validate_config(cfg: dict) -> None:
+    webcam_on = cfg.get("webcam", {}).get("enabled", True)
+    video_on  = cfg.get("video",  {}).get("enabled", True)
+    proxy_on  = cfg.get("rtsp_proxy", {}).get("enabled", False)
+    if not (webcam_on or video_on or proxy_on):
+        sys.exit(
+            "ERROR: All sources are disabled (webcam.enabled, video.enabled, "
+            "rtsp_proxy.enabled are all false). Enable at least one source."
+        )
+
+
 def main() -> None:
     cfg = load_config()
     _setup_logging(Path(cfg["_base_dir"]))
+    _validate_config(cfg)
 
     logger.info("=== Local Mock RTSP ===")
     logger.info("Encoder: %s", cfg["encoding"]["encoder"])

@@ -93,6 +93,11 @@ def create_app(
         proxy_rtsp = proxy_rtsp_urls[0]
         proxy_source_masked = mask_url(cfg["rtsp_proxy"]["source_url"])
 
+    # ── web_preview flags (per-stream) ──────────────────────────────────────
+    webcam_web_preview: bool = bool(cfg["webcam"].get("web_preview", True))
+    video_web_preview: bool  = bool(cfg["video"].get("web_preview", True))
+    proxy_web_preview: bool  = bool(cfg.get("rtsp_proxy", {}).get("web_preview", True))
+
     # ------------------------------------------------------------------ pages
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request):
@@ -102,11 +107,15 @@ def create_app(
         rendered = tmpl.render(
             webcam_available=webcam.available,
             webcam_enabled=webcam.enabled,
+            webcam_web_preview=webcam_web_preview,
             webcam_rtsp_urls=webcam_rtsp_urls,
+            video_enabled=cfg["video"].get("enabled", True),
+            video_web_preview=video_web_preview,
             video_rtsp_urls=video_rtsp_urls,
             videos=videos,
             current_video=current,
             proxy_enabled=proxy is not None,
+            proxy_web_preview=proxy_web_preview,
             proxy_rtsp_urls=proxy_rtsp_urls,
             proxy_source_masked=proxy_source_masked,
         )
@@ -145,11 +154,15 @@ def create_app(
         @app.post("/api/proxy/effects")
         async def proxy_effects_post(request: Request):
             data = await request.json()
+            if not proxy_web_preview:
+                data["preview_enabled"] = False
             proxy.effects.update_config(data)
             return proxy.effects.get_config()
 
     @app.get("/stream/webcam")
     async def stream_webcam():
+        if not webcam_web_preview:
+            return JSONResponse({"error": "Web preview disabled for webcam"}, status_code=503)
         placeholder = _placeholder_frame(640, 360, "Webcam Unavailable")
         return StreamingResponse(
             _mjpeg_generator_bytes(webcam.get_preview_jpeg, placeholder, fps=webcam.preview_fps),
@@ -158,6 +171,8 @@ def create_app(
 
     @app.get("/stream/video")
     async def stream_video():
+        if not video_web_preview:
+            return JSONResponse({"error": "Web preview disabled for video"}, status_code=503)
         placeholder = _placeholder_frame(640, 360, "No Video Frame")
         return StreamingResponse(
             _mjpeg_generator_bytes(video.get_preview_jpeg, placeholder, fps=video.preview_fps),
@@ -250,6 +265,8 @@ def create_app(
     @app.post("/api/webcam/effects")
     async def webcam_effects_post(request: Request):
         data = await request.json()
+        if not webcam_web_preview:
+            data["preview_enabled"] = False
         webcam.effects.update_config(data)
         return webcam.effects.get_config()
 
@@ -260,6 +277,8 @@ def create_app(
     @app.post("/api/video/effects")
     async def video_effects_post(request: Request):
         data = await request.json()
+        if not video_web_preview:
+            data["preview_enabled"] = False
         video.effects.update_config(data)
         return video.effects.get_config()
 

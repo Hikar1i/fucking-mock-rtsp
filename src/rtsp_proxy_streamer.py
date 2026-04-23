@@ -53,6 +53,8 @@ class RtspProxyStreamer:
         self._reconnect_event  = threading.Event()
         self._thread: threading.Thread | None = None
 
+        self._web_preview: bool = bool(cfg.get("rtsp_proxy", {}).get("web_preview", True))
+
         self._preview_fps: int = max(1, self._out_fps // 2)
         self._preview_queue: queue.Queue = queue.Queue(maxsize=5)
         self._preview_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="pxy-jpeg")
@@ -387,7 +389,8 @@ class RtspProxyStreamer:
                             except queue.Empty:
                                 break
                     preview_frame = effected if self.effects.preview_active else raw
-                    self._preview_pool.submit(self._enqueue_preview, preview_frame.copy())
+                    if self._web_preview:
+                        self._preview_pool.submit(self._enqueue_preview, preview_frame.copy())
 
             finally:
                 cap.release()
