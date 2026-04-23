@@ -1,0 +1,48 @@
+# GPU-ready project file — intended for NVIDIA CUDA 12.x environments.
+#
+# Usage (uv):
+#   cp pyproject-gpu.toml pyproject.toml   # replace the base file
+#   uv sync
+#
+# Usage (pip):
+#   pip install cupy-cuda12x>=13.0.0
+#   pip install -r requirements.txt        # remaining deps as usual
+#
+# Notes on OpenCV CUDA acceleration
+# -----------------------------------
+# The pip wheel `opencv-python` does NOT include CUDA support.
+# To enable `OPENCV_CUDA_AVAILABLE`, you need an OpenCV built with CUDA:
+#   - conda (cu12-dev env):  conda install -c conda-forge opencv  [if CUDA-built]
+#   - or build from source:  cmake -D WITH_CUDA=ON ...
+# The runtime detector in src/gpu_backend.py handles this automatically;
+# if CUDA OpenCV is absent, the system silently falls back to CPU OpenCV.
+
+[project]
+name = "local-mock-rtsp"
+version = "0.1.0"
+description = "Local RTSP stream simulator for camera anomaly detection development"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.29.0",
+    "opencv-python>=4.9.0",
+    "pyyaml>=6.0.1",
+    "requests>=2.31.0",
+    "numpy>=1.26.0",
+    "aiofiles>=23.2.1",
+    "jinja2>=3.1.4",
+    "cupy-cuda12x>=13.0.0",
+]
+
+[project.scripts]
+mock-rtsp = "main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[dependency-groups]
+dev = []

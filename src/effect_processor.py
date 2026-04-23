@@ -10,6 +10,8 @@ from typing import Any
 import cv2
 import numpy as np
 
+from src import gpu_backend as _gpu
+
 logger = logging.getLogger(__name__)
 
 
@@ -153,11 +155,39 @@ class EffectProcessor:
     @staticmethod
     def _apply_noise(frame: np.ndarray, cfg: EffectConfig) -> np.ndarray:
         h, w = frame.shape[:2]
-        # Gaussian noise
+        if _gpu.CUPY_AVAILABLE:
+            cp = _gpu.cp
+            gpu = cp.asarray(frame)
+            if cfg.noise_gaussian_sigma > 0:
+                noise = cp.random.normal(
+                    0, cfg.noise_gaussian_sigma, (h, w, 3), dtype=cp.float32
+                )
+                gpu = cp.clip(gpu.astype(cp.float32) + noise, 0, 255).astype(cp.uint8)
+            if cfg.noise_sp_prob > 0:
+                prob = cfg.noise_sp_prob
+                rng = cp.random.random((h, w))
+                gpu = gpu.copy()
+                gpu[rng < prob / 2] = 0
+                gpu[rng > 1 - prob / 2] = 255
+            return cp.asnumpy(gpu)
+        if _gpu.TORCH_CUDA_AVAILABLE:
+            th = _gpu.torch
+            gpu = th.as_tensor(frame).cuda()
+            if cfg.noise_gaussian_sigma > 0:
+                noise = th.empty(h, w, 3, dtype=th.float32, device="cuda")
+                noise.normal_(0, cfg.noise_gaussian_sigma)
+                gpu = th.clamp(gpu.float() + noise, 0, 255).to(th.uint8)
+            if cfg.noise_sp_prob > 0:
+                prob = cfg.noise_sp_prob
+                rng = th.rand(h, w, device="cuda")
+                gpu = gpu.clone()
+                gpu[rng < prob / 2] = 0
+                gpu[rng > 1 - prob / 2] = 255
+            return gpu.cpu().numpy()
+        # CPU fallback
         if cfg.noise_gaussian_sigma > 0:
             noise = np.random.normal(0, cfg.noise_gaussian_sigma, (h, w, 3)).astype(np.int16)
             frame = np.clip(frame.astype(np.int16) + noise, 0, 255).astype(np.uint8)
-        # Salt & pepper
         if cfg.noise_sp_prob > 0:
             prob = cfg.noise_sp_prob
             rng = np.random.random((h, w))
@@ -188,20 +218,74 @@ class EffectProcessor:
             if s > 0:
                 kernel /= s
             return cv2.filter2D(frame, -1, kernel)
+        if _gpu.OPENCV_CUDA_AVAILABLE:
+            try:
+                gpu_mat = cv2.cuda_GpuMat()
+                gpu_mat.upload(frame)
+                gauss = cv2.cuda.createGaussianFilter(
+                    cv2.CV_8UC3, cv2.CV_8UC3, (k, k), 0
+                )
+                return gauss.apply(gpu_mat).download()
+            except Exception:
+                pass
         return cv2.GaussianBlur(frame, (k, k), 0)
 
     @staticmethod
     def _apply_brightness_contrast(frame: np.ndarray, cfg: EffectConfig) -> np.ndarray:
         alpha = cfg.contrast_value if cfg.contrast_enabled else 1.0
         beta = cfg.brightness_value if cfg.brightness_enabled else 0.0
+        if _gpu.CUPY_AVAILABLE:
+            cp = _gpu.cp
+            gpu = cp.asarray(frame, dtype=cp.float32)
+            return cp.asnumpy(cp.clip(cp.abs(gpu * alpha + beta), 0, 255).astype(cp.uint8))
         return cv2.convertScaleAbs(frame, alpha=alpha, beta=beta)
 
     @staticmethod
     def _apply_color(frame: np.ndarray, cfg: EffectConfig) -> np.ndarray:
+        if _gpu.OPENCV_CUDA_AVAILABLE:
+            try:
+                gpu_bgr = cv2.cuda_GpuMat()
+                gpu_bgr.upload(frame)
+                gpu_hsv_mat = cv2.cuda.cvtColor(gpu_bgr, cv2.COLOR_BGR2HSV)
+                hsv = gpu_hsv_mat.download().astype(np.float32)
+                if _gpu.CUPY_AVAILABLE:
+                    cp = _gpu.cp
+                    h_gpu = cp.asarray(hsv)
+                    h_gpu[:, :, 0] = (h_gpu[:, :, 0] + cfg.color_hue_shift / 2.0) % 180.0
+                    h_gpu[:, :, 1] = cp.clip(h_gpu[:, :, 1] * cfg.color_saturation, 0, 255)
+                    hsv = cp.asnumpy(h_gpu).astype(np.uint8)
+                elif _gpu.TORCH_CUDA_AVAILABLE:
+                    th = _gpu.torch
+                    h_gpu = th.as_tensor(hsv).cuda()
+                    h_gpu[:, :, 0] = (h_gpu[:, :, 0] + cfg.color_hue_shift / 2.0) % 180.0
+                    h_gpu[:, :, 1] = th.clamp(
+                        h_gpu[:, :, 1] * cfg.color_saturation, 0, 255
+                    )
+                    hsv = h_gpu.cpu().numpy().astype(np.uint8)
+                else:
+                    hsv[:, :, 0] = (hsv[:, :, 0] + cfg.color_hue_shift / 2.0) % 180.0
+                    hsv[:, :, 1] = np.clip(hsv[:, :, 1] * cfg.color_saturation, 0, 255)
+                    hsv = hsv.astype(np.uint8)
+                gpu_hsv2 = cv2.cuda_GpuMat()
+                gpu_hsv2.upload(hsv)
+                return cv2.cuda.cvtColor(gpu_hsv2, cv2.COLOR_HSV2BGR).download()
+            except Exception:
+                pass
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV).astype(np.float32)
-        # Hue shift
+        if _gpu.CUPY_AVAILABLE:
+            cp = _gpu.cp
+            h_gpu = cp.asarray(hsv)
+            h_gpu[:, :, 0] = (h_gpu[:, :, 0] + cfg.color_hue_shift / 2.0) % 180.0
+            h_gpu[:, :, 1] = cp.clip(h_gpu[:, :, 1] * cfg.color_saturation, 0, 255)
+            return cv2.cvtColor(cp.asnumpy(h_gpu).astype(np.uint8), cv2.COLOR_HSV2BGR)
+        if _gpu.TORCH_CUDA_AVAILABLE:
+            th = _gpu.torch
+            h_gpu = th.as_tensor(hsv).cuda()
+            h_gpu[:, :, 0] = (h_gpu[:, :, 0] + cfg.color_hue_shift / 2.0) % 180.0
+            h_gpu[:, :, 1] = th.clamp(h_gpu[:, :, 1] * cfg.color_saturation, 0, 255)
+            return cv2.cvtColor(h_gpu.cpu().numpy().astype(np.uint8), cv2.COLOR_HSV2BGR)
+        # CPU fallback
         hsv[:, :, 0] = (hsv[:, :, 0] + cfg.color_hue_shift / 2.0) % 180.0
-        # Saturation scale
         hsv[:, :, 1] = np.clip(hsv[:, :, 1] * cfg.color_saturation, 0, 255)
         hsv = hsv.astype(np.uint8)
         return cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
