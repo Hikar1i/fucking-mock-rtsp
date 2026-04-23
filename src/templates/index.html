@@ -710,6 +710,7 @@ async function webcamDisable() { await api('/api/webcam/disable'); }
 
 function updateWebcamUI(d) {
   const badge = document.getElementById('wcam-badge');
+  if (!badge) return;
   if (!_webcamAvail) { badge.className='badge badge-gray'; badge.textContent='不可用'; return; }
   if (d.enabled) { badge.className='badge badge-green'; badge.textContent='推流中'; }
   else           { badge.className='badge badge-red';   badge.textContent='已禁用'; }
@@ -811,6 +812,7 @@ function updateLoopButtons(mode) {
 // ─── Video UI update ──────────────────────────────────────────────────────────
 function updateVideoUI(d) {
   const badge = document.getElementById('vid-badge');
+  if (!badge) return;
   if (!d.streaming)  { badge.className='badge badge-gray';   badge.textContent='推流已停'; }
   else if (d.playing){ badge.className='badge badge-green';  badge.textContent='推流中'; }
   else               { badge.className='badge badge-yellow'; badge.textContent='已暂停'; }
