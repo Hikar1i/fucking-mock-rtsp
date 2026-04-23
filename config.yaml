@@ -19,7 +19,7 @@ webcam:
 
 video:
   enabled: true
-  web_preview: false     # set false to skip MJPEG encoding and disable web preview
+  web_preview: true     # set false to skip MJPEG encoding and disable web preview
   default_file: ""
   videos_dir: "videos"
   loop: true
@@ -30,7 +30,7 @@ video:
 
 rtsp_proxy:
   enabled: true
-  web_preview: false     # set false to skip MJPEG encoding and disable web preview
+  web_preview: true     # set false to skip MJPEG encoding and disable web preview
   source_url: "rtsp://admin:kd123456@192.168.100.14:554"
   # Output resolution pushed to MediaMTX (source will be resized if different)
   width: 1024
@@ -47,5 +47,5 @@ mediamtx:
 
 encoding:
   encoder: "auto"
-  bitrate: "1M"
+  bitrate: "2M"
   preset: "ultrafast"
