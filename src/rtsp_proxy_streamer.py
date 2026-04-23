@@ -14,6 +14,7 @@ import numpy as np
 
 from src.effect_processor import EffectProcessor
 from src.webcam_streamer import _encoder_args
+from src import gpu_backend as _gpu
 
 logger = logging.getLogger(__name__)
 
@@ -367,7 +368,17 @@ class RtspProxyStreamer:
                     self._set_status(STATUS_CONNECTED)
 
                     if src_w != self._out_width or src_h != self._out_height:
-                        frame = cv2.resize(frame, (self._out_width, self._out_height))
+                        if _gpu.OPENCV_CUDA_AVAILABLE:
+                            try:
+                                gm = cv2.cuda_GpuMat()
+                                gm.upload(frame)
+                                frame = cv2.cuda.resize(
+                                    gm, (self._out_width, self._out_height)
+                                ).download()
+                            except Exception:
+                                frame = cv2.resize(frame, (self._out_width, self._out_height))
+                        else:
+                            frame = cv2.resize(frame, (self._out_width, self._out_height))
 
                     raw = frame
                     effected = self.effects.apply(frame.copy())
