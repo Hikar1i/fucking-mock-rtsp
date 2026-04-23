@@ -1,6 +1,6 @@
 # Local Mock RTSP
 
-本地 RTSP 流模拟器，用于摄像头异常检测项目的开发调试。支持将本地摄像头或视频文件编码为 RTSP 流，并可通过 Web 页面实时预览和控制，同时支持对视频帧施加多种图像干扰效果。
+本地 RTSP 流模拟器，用于摄像头异常检测项目的开发调试。支持将本地摄像头、视频文件，以及**真实 RTSP 摄像头**的画面编码为 RTSP 流，并可通过 Web 页面实时预览和控制，同时支持对视频帧施加多种图像干扰效果。
 
 ---
 
@@ -42,8 +42,13 @@
   - 播放速度调节（0.1× ~ 4.0×）
   - 循环模式：无循环 / 单文件循环 / 播放列表循环
   - 切换到下一个视频时 RTSP 流无缝续流（不断开客户端连接）
-- **Web 监控页面**（`/`）：双路 MJPEG 实时预览 + 全套播放控件
-- **图像干扰效果**（摄像头和视频均支持）：
+- **真实 RTSP 代理**（可选）：拉取真实网络摄像头 RTSP 流，叠加干扰效果后重新推送至 `/proxy`，支持：
+  - 断线自动重连（可配置延迟）
+  - Web UI 手动重连按钮
+  - 与本地摄像头/视频相同的效果控制面板
+  - 可通过 `config.yaml` 的 `rtsp_proxy.enabled` 开关，关闭时页面不渲染该列
+- **Web 监控页面**（`/`）：最多两列 / 行固定布局，MJPEG 实时预览 + 全套控件
+- **图像干扰效果**（摄像头、视频、RTSP 代理均支持）：
   - 高斯噪声 / 椒盐噪声
   - 高斯模糊 / 运动模糊
   - 随机色块遮挡
@@ -109,6 +114,7 @@ uv run python main.py
 | Web 监控页面 | `http://localhost:8080` |
 | 摄像头 RTSP 流 | `rtsp://<本机IP>:8554/webcam` |
 | 视频文件 RTSP 流 | `rtsp://<本机IP>:8554/video` |
+| 真实 RTSP 代理（需启用） | `rtsp://<本机IP>:8554/proxy` |
 
 > Web 页面的 RTSP URL 栏会自动显示本机真实局域网 IP（以太网/WLAN），若同时存在多个网卡则每行显示一个地址，点击即可复制。若未检测到局域网地址则回落至 `localhost`。
 
@@ -124,9 +130,10 @@ ffplay rtsp://192.168.3.168:8554/video
 
 ### 布局
 
-页面分为左右两列：
-- **左列**：摄像头预览 + 摄像头控制
-- **右列**：视频文件预览 + 播放控件 + 效果控制
+页面固定每行最多两列：
+- **第一行左**：摄像头预览 + 摄像头控制
+- **第一行右**：视频文件预览 + 播放控件 + 效果控制
+- **第二行左**（仅 `rtsp_proxy.enabled: true` 时显示）：真实 RTSP 代理预览 + 重连控制 + 效果控制
 
 ### 视频播放控制
 
@@ -195,6 +202,16 @@ video:
   fps: 25                  # 输出帧率
   rtsp_path: "/video"      # RTSP 路径
 
+rtsp_proxy:
+  enabled: false           # true = 启用真实 RTSP 代理；false = 不拉流、页面不显示该列
+  source_url: "rtsp://admin:password@192.168.1.100:554"  # 源摄像头 RTSP 地址
+  width: 1024              # 输出分辨率宽（源流会被缩放）
+  height: 576              # 输出分辨率高
+  fps: 25                  # 输出帧率
+  rtsp_path: "/proxy"      # MediaMTX 发布路径
+  reconnect_delay: 3       # 断线后等待重连的秒数
+  open_timeout: 10         # 等待 RTSP 源打开的超时秒数
+
 mediamtx:
   bin_dir: "bin"           # MediaMTX 二进制文件存放目录
   version: "v1.9.1"        # 自动下载的 MediaMTX 版本
@@ -205,6 +222,14 @@ encoding:
   bitrate: "1M"            # 视频码率（如 "1M", "2M", "500k"）
   preset: "ultrafast"      # libx264 编码预设（ultrafast/fast/medium 等）
 ```
+
+### 启用真实 RTSP 代理
+
+1. 先用探针脚本验证网络可达性：
+   ```bash
+   uv run python test_rtsp_probe.py rtsp://admin:password@192.168.1.100:554
+   ```
+2. 测试通过后将 `rtsp_proxy.enabled` 改为 `true` 并填写正确的 `source_url`，重启服务即可。
 
 ### 性能调优建议
 
@@ -242,11 +267,21 @@ encoding:
 | `GET` | `/api/video/effects` | 获取视频效果配置 |
 | `POST` | `/api/video/effects` | 更新视频效果配置 |
 
+### 真实 RTSP 代理（`rtsp_proxy.enabled: true` 时可用）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `POST` | `/api/proxy/streaming/enable` | 开启代理 RTSP 推流 |
+| `POST` | `/api/proxy/streaming/disable` | 关闭代理 RTSP 推流 |
+| `POST` | `/api/proxy/reconnect` | 立即触发重连源摄像头 |
+| `GET` | `/api/proxy/effects` | 获取代理效果配置 |
+| `POST` | `/api/proxy/effects` | 更新代理效果配置 |
+
 ### 状态与列表
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| `GET` | `/api/status` | 完整状态 JSON（摄像头、视频、效果、视频列表） |
+| `GET` | `/api/status` | 完整状态 JSON（摄像头、视频、代理、效果、视频列表） |
 | `GET` | `/api/videos` | 获取可用视频文件列表 |
 
 ### 效果配置字段（`/api/{webcam\|video}/effects` POST body）
@@ -290,10 +325,12 @@ main.py
 ├── MediaMTXManager     — 下载、生成配置、启动/停止 MediaMTX 进程
 ├── WebcamStreamer       — 摄像头帧采集 + 效果处理 + RTSP 推流 + MJPEG 预览
 ├── VideoStreamer        — 视频文件解码 + 播放控制 + 效果处理 + RTSP 推流 + MJPEG 预览
+├── RtspProxyStreamer    — 拉取真实 RTSP 源 + 效果处理 + RTSP 转发 + MJPEG 预览（可选）
 └── FastAPI (web_server)
     ├── GET  /                  — Web 监控页面（Jinja2 模板）
     ├── GET  /stream/webcam     — 摄像头 MJPEG 流（HTTP multipart）
     ├── GET  /stream/video      — 视频 MJPEG 流（HTTP multipart）
+    ├── GET  /stream/proxy      — 代理 MJPEG 流（仅 enabled 时注册）
     └── POST /api/...           — 控制 API
 ```
 

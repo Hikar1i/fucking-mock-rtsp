@@ -26,6 +26,17 @@ video:
   fps: 25
   rtsp_path: "/video"
 
+rtsp_proxy:
+  enabled: true
+  source_url: "rtsp://admin:kd123456@192.168.100.14:554"
+  # Output resolution pushed to MediaMTX (source will be resized if different)
+  width: 1024
+  height: 576
+  fps: 25
+  rtsp_path: "/proxy"
+  reconnect_delay: 3      # seconds to wait before auto-reconnect
+  open_timeout: 10        # seconds to wait for RTSP source to open
+
 mediamtx:
   bin_dir: "bin"
   version: "v1.9.1"

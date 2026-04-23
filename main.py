@@ -13,6 +13,7 @@ from src.config import load_config
 from src.mediamtx_manager import MediaMTXManager
 from src.webcam_streamer import WebcamStreamer
 from src.video_streamer import VideoStreamer
+from src.rtsp_proxy_streamer import RtspProxyStreamer
 from src.web_server import create_app
 
 
@@ -58,8 +59,14 @@ def main() -> None:
     webcam = WebcamStreamer(cfg)
     video = VideoStreamer(cfg)
 
+    proxy: RtspProxyStreamer | None = None
+    if cfg.get("rtsp_proxy", {}).get("enabled", False):
+        proxy = RtspProxyStreamer(cfg)
+
     def shutdown(sig=None, frame=None):
         logger.info("Shutting down...")
+        if proxy:
+            proxy.stop()
         video.stop()
         webcam.stop()
         mtx.stop()
@@ -82,7 +89,11 @@ def main() -> None:
     logger.info("Starting webcam streamer...")
     webcam.start()
 
-    app = create_app(cfg, webcam, video)
+    if proxy:
+        logger.info("Starting RTSP proxy streamer...")
+        proxy.start()
+
+    app = create_app(cfg, webcam, video, proxy)
 
     host = cfg["server"]["host"]
     port = cfg["server"]["web_port"]
@@ -92,6 +103,11 @@ def main() -> None:
         cfg["server"]["rtsp_port"], cfg["webcam"]["rtsp_path"],
         cfg["server"]["rtsp_port"], cfg["video"]["rtsp_path"],
     )
+    if proxy:
+        logger.info(
+            "RTSP proxy:   rtsp://localhost:%d%s",
+            cfg["server"]["rtsp_port"], cfg["rtsp_proxy"]["rtsp_path"],
+        )
 
     try:
         uvicorn.run(app, host=host, port=port, log_level="warning")

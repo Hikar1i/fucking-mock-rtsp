@@ -195,6 +195,13 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
 }
 .preview-placeholder p { font-size: 0.83rem; }
 
+/* ── proxy card: always first column of its row ── */
+.card.proxy-card { grid-column: 1 / 2; }
+.source-url-disp {
+  font-size: 0.73rem; font-family: 'Courier New', monospace; color: #475569;
+  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
 /* ── random confirm overlay ── */
 #random-confirm {
   display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45);
@@ -447,6 +454,112 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
   </div>
 </div><!-- /video card -->
 
+{% if proxy_enabled %}
+<!-- ========== PROXY CARD ========== -->
+<div class="card proxy-card">
+  <div class="card-header">
+    <span class="card-title">🔗 真实RTSP代理</span>
+    <span class="badge badge-yellow" id="pxy-badge">连接中</span>
+  </div>
+
+  <!-- RTSP output URL bar -->
+  <div class="rtsp-bar">
+    <span class="rtsp-label">RTSP</span>
+    <div class="rtsp-urls">
+      {% for url in proxy_rtsp_urls %}
+      <div class="rtsp-row">
+        <div class="rtsp-url" id="pxy-rtsp-{{ loop.index0 }}"
+             onclick="copyRtsp('pxy-rtsp-{{ loop.index0 }}','pxy-copy-{{ loop.index0 }}')"
+             title="点击复制">{{ url }}</div>
+        <span class="copy-hint" id="pxy-copy-{{ loop.index0 }}">✓ 已复制</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="vid-preview-wrap" id="pxy-preview-wrap">
+    <img class="preview" id="pxy-img" src="/stream/proxy" alt="proxy">
+  </div>
+  <div class="preview-placeholder" id="pxy-preview-ph" style="display:none">
+    <p>已关闭预览显示</p>
+  </div>
+
+  <div class="controls">
+    <!-- streaming + preview + reconnect -->
+    <div class="row">
+      <button class="btn-green btn-sm" id="pxy-str-en"  onclick="proxyStreamEnable()">▶ 启用推流</button>
+      <button class="btn-red btn-sm"   id="pxy-str-dis" onclick="proxyStreamDisable()">■ 禁用推流</button>
+      <button class="btn-toggle btn-sm on-green" id="pxy-preview-toggle" onclick="proxyPreviewToggle()">预览推流: 开</button>
+      <button class="btn-amber btn-sm" id="pxy-reconnect" onclick="proxyReconnect()">⟳ 重连</button>
+    </div>
+
+    <!-- source info row (mirrors video file selector position) -->
+    <div class="row">
+      <span style="font-size:0.73rem;color:#64748b;white-space:nowrap;font-weight:600">源:</span>
+      <span class="source-url-disp" id="pxy-source-disp">{{ proxy_source_masked }}</span>
+      <span class="badge badge-yellow" id="pxy-conn-badge">连接中</span>
+    </div>
+
+    <div class="section-sep"></div>
+
+    <!-- effect panel: proxy -->
+    <div class="effect-panel" id="pxy-efx-panel">
+      <div class="effect-panel-header">
+        <span class="effect-panel-title">🎛 干扰效果</span>
+        <button class="btn-toggle" id="pxy-efx-preview" onclick="toggleEffectPreview('pxy')" disabled>干扰预览: 关</button>
+        <button class="btn-toggle" id="pxy-efx-all" onclick="toggleEffectAll('pxy')">干扰效果: 关</button>
+        <button class="btn-toggle on-amber" id="pxy-efx-rand" onclick="triggerRandom('pxy')">生成随机干扰</button>
+        <button class="btn-toggle" id="pxy-black" onclick="toggleBlack('pxy')">画面全黑蒙版</button>
+      </div>
+      <!-- noise -->
+      <div class="eff-section">
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="pxy-noise-sw" onclick="toggleEffect('pxy','noise')">噪 点</button></div>
+        <div class="eff-params">
+          <div class="eff-param"><span class="eff-lbl">高斯σ</span><input type="range" class="eff-range" id="pxy-noise-sigma" min="0" max="80" step="1" value="20" oninput="setEfxVal('pxy','noise_gaussian_sigma',this.value,'pxy-noise-sigma-v')"><span class="eff-val" id="pxy-noise-sigma-v">20</span></div>
+          <div class="eff-param"><span class="eff-lbl">椒盐%</span><input type="range" class="eff-range" id="pxy-noise-sp" min="0" max="15" step="0.5" value="3" oninput="setEfxVal('pxy','noise_sp_prob',this.value/100,'pxy-noise-sp-v',v=>(v*100).toFixed(1)+'%')"><span class="eff-val" id="pxy-noise-sp-v">3.0%</span></div>
+        </div>
+      </div>
+      <!-- blur -->
+      <div class="eff-section">
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="pxy-blur-sw" onclick="toggleEffect('pxy','blur')">模 糊</button></div>
+        <div class="eff-params">
+          <div class="eff-param"><span class="eff-lbl">类型</span><select id="pxy-blur-type" onchange="setEfx('pxy',{blur_type:this.value})"><option value="gaussian">高斯</option><option value="motion">运动</option></select></div>
+          <div class="eff-param"><span class="eff-lbl">强度</span><input type="range" class="eff-range" id="pxy-blur-k" min="1" max="31" step="2" value="7" oninput="setEfxVal('pxy','blur_kernel',+this.value,'pxy-blur-k-v')"><span class="eff-val" id="pxy-blur-k-v">7</span></div>
+        </div>
+      </div>
+      <!-- occlusion -->
+      <div class="eff-section">
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="pxy-occ-sw" onclick="toggleEffect('pxy','occ')">遮挡块</button></div>
+        <div class="eff-params">
+          <div class="eff-param"><span class="eff-lbl">数量</span><input type="range" class="eff-range" id="pxy-occ-cnt" min="1" max="20" step="1" value="3" oninput="setEfxVal('pxy','occlusion_count',+this.value,'pxy-occ-cnt-v')"><span class="eff-val" id="pxy-occ-cnt-v">3</span></div>
+          <div class="eff-param"><span class="eff-lbl">最大px</span><input type="range" class="eff-range" id="pxy-occ-sz" min="10" max="200" step="5" value="80" oninput="setEfxVal('pxy','occlusion_max_size',+this.value,'pxy-occ-sz-v')"><span class="eff-val" id="pxy-occ-sz-v">80</span></div>
+          <div class="eff-param"><span class="eff-lbl">刷新s</span><input type="range" class="eff-range" id="pxy-occ-ref" min="0.5" max="10" step="0.5" value="2" oninput="setEfxVal('pxy','occlusion_refresh_sec',+this.value,'pxy-occ-ref-v',v=>v+'s')"><span class="eff-val" id="pxy-occ-ref-v">2s</span></div>
+          <div class="eff-param"><span class="eff-lbl">颜色</span><div class="chk-group"><label class="chk-item"><input type="checkbox" id="pxy-occ-black" checked onchange="updateOccColors('pxy')"> 黑</label><label class="chk-item"><input type="checkbox" id="pxy-occ-white" onchange="updateOccColors('pxy')"> 白</label><label class="chk-item"><input type="checkbox" id="pxy-occ-gray" onchange="updateOccColors('pxy')"> 灰</label></div></div>
+        </div>
+      </div>
+      <!-- brightness -->
+      <div class="eff-section">
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="pxy-bright-sw" onclick="toggleEffect('pxy','bright')">亮 度</button></div>
+        <div class="eff-params"><div class="eff-param span2"><span class="eff-lbl">亮度值</span><input type="range" class="eff-range" id="pxy-bright-v" min="-100" max="100" step="1" value="0" oninput="setEfxVal('pxy','brightness_value',+this.value,'pxy-bright-disp',v=>v>0?'+'+v:v)"><span class="eff-val" id="pxy-bright-disp">0</span></div></div>
+      </div>
+      <!-- contrast -->
+      <div class="eff-section">
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="pxy-cont-sw" onclick="toggleEffect('pxy','cont')">对比度</button></div>
+        <div class="eff-params"><div class="eff-param span2"><span class="eff-lbl">倍率</span><input type="range" class="eff-range" id="pxy-cont-v" min="0.3" max="3.0" step="0.05" value="1.0" oninput="setEfxVal('pxy','contrast_value',+this.value,'pxy-cont-disp',v=>parseFloat(v).toFixed(2)+'×')"><span class="eff-val" id="pxy-cont-disp">1.00×</span></div></div>
+      </div>
+      <!-- color -->
+      <div class="eff-section">
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="pxy-color-sw" onclick="toggleEffect('pxy','color')">颜 色</button></div>
+        <div class="eff-params">
+          <div class="eff-param"><span class="eff-lbl">色调</span><input type="range" class="eff-range" id="pxy-hue" min="-180" max="180" step="1" value="0" oninput="setEfxVal('pxy','color_hue_shift',+this.value,'pxy-hue-v',v=>v+'°')"><span class="eff-val" id="pxy-hue-v">0°</span></div>
+          <div class="eff-param"><span class="eff-lbl">饱和</span><input type="range" class="eff-range" id="pxy-sat" min="0" max="2" step="0.05" value="1" oninput="setEfxVal('pxy','color_saturation',+this.value,'pxy-sat-v',v=>parseFloat(v).toFixed(2))"><span class="eff-val" id="pxy-sat-v">1.00</span></div>
+        </div>
+      </div>
+    </div><!-- /effect-panel -->
+  </div>
+</div><!-- /proxy card -->
+{% endif %}
+
 </div><!-- .grid -->
 
 <!-- Random confirm dialog -->
@@ -462,13 +575,13 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
 
 <script>
 // ─── State ────────────────────────────────────────────────────────────────────
-const WCAM = 'wcam', VID = 'vid';
+const WCAM = 'wcam', VID = 'vid', PXY = 'pxy';
 let _totalSec = 0, _seekDragging = false, _isPlaying = false;
 let _webcamAvail = document.querySelector('meta[name="webcam-available"]').content === 'true';
 let _randomTarget = null;
 // pending effect patches (debounced)
-let _efxPatch = {wcam:{}, vid:{}};
-let _efxTimer = {wcam:null, vid:null};
+let _efxPatch = {wcam:{}, vid:{}, pxy:{}};
+let _efxTimer = {wcam:null, vid:null, pxy:null};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtTime(sec) {
@@ -484,7 +597,9 @@ function api(url, body) {
   });
 }
 function efxApi(stream) {
-  return stream === WCAM ? '/api/webcam/effects' : '/api/video/effects';
+  if (stream === WCAM) return '/api/webcam/effects';
+  if (stream === PXY)  return '/api/proxy/effects';
+  return '/api/video/effects';
 }
 
 // ─── RTSP copy ────────────────────────────────────────────────────────────────
@@ -835,7 +950,57 @@ function syncEffectUI(s, c) {
   chk(s+'-occ-gray',  colors.includes('gray'));
 }
 
-// ─── Poll status ──────────────────────────────────────────────────────────────
+// ─── Proxy stream ─────────────────────────────────────────────────────────────
+async function proxyStreamEnable()  { await api('/api/proxy/streaming/enable'); }
+async function proxyStreamDisable() { await api('/api/proxy/streaming/disable'); }
+async function proxyReconnect() {
+  const btn = document.getElementById('pxy-reconnect');
+  if (btn) { btn.disabled = true; setTimeout(() => btn.disabled = false, 2000); }
+  await api('/api/proxy/reconnect');
+}
+
+function proxyPreviewToggle() {
+  const btn  = document.getElementById('pxy-preview-toggle');
+  const wrap = document.getElementById('pxy-preview-wrap');
+  const ph   = document.getElementById('pxy-preview-ph');
+  const img  = document.getElementById('pxy-img');
+  const isOn = btn.classList.contains('on-green');
+  if (isOn) {
+    if (img) { img._savedSrc = img.src; img.src = ''; }
+    if (wrap) wrap.style.display = 'none';
+    if (ph) ph.style.display = '';
+    btn.classList.remove('on-green');
+    btn.textContent = '预览推流: 关';
+  } else {
+    if (img) img.src = img._savedSrc || '/stream/proxy';
+    if (wrap) wrap.style.display = '';
+    if (ph) ph.style.display = 'none';
+    btn.classList.add('on-green');
+    btn.textContent = '预览推流: 开';
+  }
+}
+
+function updateProxyUI(d) {
+  const badge     = document.getElementById('pxy-badge');
+  const connBadge = document.getElementById('pxy-conn-badge');
+  if (!badge) return;
+  const STATUS_MAP = {
+    connected:    { cls: 'badge-green',  text: '已连接' },
+    connecting:   { cls: 'badge-yellow', text: '连接中' },
+    disconnected: { cls: 'badge-red',    text: '已断开' },
+  };
+  const connInfo = STATUS_MAP[d.status] || { cls: 'badge-gray', text: d.status };
+  if (connBadge) { connBadge.className = 'badge ' + connInfo.cls; connBadge.textContent = connInfo.text; }
+  if (!d.streaming)                { badge.className = 'badge badge-gray';   badge.textContent = '推流已停'; }
+  else if (d.status === 'connected') { badge.className = 'badge badge-green';  badge.textContent = '推流中'; }
+  else                             { badge.className = 'badge badge-yellow'; badge.textContent = '连接中'; }
+  const enBtn  = document.getElementById('pxy-str-en');
+  const disBtn = document.getElementById('pxy-str-dis');
+  if (enBtn)  enBtn.disabled  = d.streaming;
+  if (disBtn) disBtn.disabled = !d.streaming;
+}
+
+// ─── Poll status ────────────────────────────────────────────────
 async function pollStatus() {
   try {
     const r = await fetch('/api/status');
@@ -844,12 +1009,15 @@ async function pollStatus() {
     updateVideoUI(d.video);
     syncEffectUI(WCAM, d.webcam.effects);
     syncEffectUI(VID,  d.video.effects);
+    if (d.proxy) {
+      updateProxyUI(d.proxy);
+      syncEffectUI(PXY, d.proxy.effects);
+    }
     document.getElementById('mtx-dot').className = d.webcam.available ? 'dot' : 'dot off';
   } catch(_) {}
   setTimeout(pollStatus, 2000);
 }
 
-// ─── Keyboard shortcuts ────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
   switch (e.key) {

@@ -14,6 +14,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from src.config import list_videos, get_videos_dir, get_host_ips
 from src.webcam_streamer import WebcamStreamer
 from src.video_streamer import VideoStreamer
+from src.rtsp_proxy_streamer import RtspProxyStreamer, mask_url
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,7 @@ def create_app(
     cfg: dict[str, Any],
     webcam: WebcamStreamer,
     video: VideoStreamer,
+    proxy: RtspProxyStreamer | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Local Mock RTSP", version="0.1.0")
 
@@ -83,6 +85,13 @@ def create_app(
     video_rtsp_urls = [f"rtsp://{ip}:{rtsp_port}{cfg['video']['rtsp_path']}" for ip in _host_ips]
     webcam_rtsp = webcam_rtsp_urls[0]  # primary for status API
     video_rtsp = video_rtsp_urls[0]    # primary for status API
+    proxy_rtsp_urls: list[str] = []
+    proxy_rtsp: str = ""
+    proxy_source_masked: str = ""
+    if proxy is not None:
+        proxy_rtsp_urls = [f"rtsp://{ip}:{rtsp_port}{cfg['rtsp_proxy']['rtsp_path']}" for ip in _host_ips]
+        proxy_rtsp = proxy_rtsp_urls[0]
+        proxy_source_masked = mask_url(cfg["rtsp_proxy"]["source_url"])
 
     # ------------------------------------------------------------------ pages
     @app.get("/", response_class=HTMLResponse)
@@ -97,10 +106,48 @@ def create_app(
             video_rtsp_urls=video_rtsp_urls,
             videos=videos,
             current_video=current,
+            proxy_enabled=proxy is not None,
+            proxy_rtsp_urls=proxy_rtsp_urls,
+            proxy_source_masked=proxy_source_masked,
         )
         return HTMLResponse(rendered)
 
     # --------------------------------------------------------------- MJPEG streams
+    # ── proxy MJPEG + API routes (only registered when proxy is enabled) ──────
+    if proxy is not None:
+        @app.get("/stream/proxy")
+        async def stream_proxy():
+            placeholder = _placeholder_frame(640, 360, "Proxy Disconnected")
+            return StreamingResponse(
+                _mjpeg_generator_bytes(proxy.get_preview_jpeg, placeholder, fps=proxy.preview_fps),
+                media_type="multipart/x-mixed-replace; boundary=frame",
+            )
+
+        @app.post("/api/proxy/streaming/enable")
+        async def proxy_streaming_enable():
+            proxy.enable_streaming()
+            return {"ok": True, "streaming": proxy.streaming}
+
+        @app.post("/api/proxy/streaming/disable")
+        async def proxy_streaming_disable():
+            proxy.disable_streaming()
+            return {"ok": True, "streaming": proxy.streaming}
+
+        @app.post("/api/proxy/reconnect")
+        async def proxy_reconnect():
+            proxy.reconnect()
+            return {"ok": True}
+
+        @app.get("/api/proxy/effects")
+        async def proxy_effects_get():
+            return proxy.effects.get_config()
+
+        @app.post("/api/proxy/effects")
+        async def proxy_effects_post(request: Request):
+            data = await request.json()
+            proxy.effects.update_config(data)
+            return proxy.effects.get_config()
+
     @app.get("/stream/webcam")
     async def stream_webcam():
         placeholder = _placeholder_frame(640, 360, "Webcam Unavailable")
@@ -221,7 +268,7 @@ def create_app(
     async def status():
         videos = list_videos(cfg)
         current_name = Path(video.state.file_path).name if video.state.file_path else ""
-        return JSONResponse({
+        result: dict = {
             "webcam": {
                 "available": webcam.available,
                 "enabled": webcam.enabled,
@@ -235,7 +282,15 @@ def create_app(
                 "effects": video.effects.get_config(),
             },
             "videos_list": videos,
-        })
+        }
+        if proxy is not None:
+            result["proxy"] = {
+                "status": proxy.status,
+                "streaming": proxy.streaming,
+                "rtsp_url": proxy_rtsp,
+                "effects": proxy.effects.get_config(),
+            }
+        return JSONResponse(result)
 
     @app.get("/api/videos")
     async def list_videos_api():

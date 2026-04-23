@@ -127,6 +127,12 @@ def _build_mediamtx_config(cfg: dict[str, Any]) -> str:
     rtsp_port = cfg["server"]["rtsp_port"]
     webcam_path = cfg["webcam"]["rtsp_path"].lstrip("/")
     video_path = cfg["video"]["rtsp_path"].lstrip("/")
+    proxy_cfg = cfg.get("rtsp_proxy", {})
+    proxy_path = (
+        proxy_cfg.get("rtsp_path", "/proxy").lstrip("/")
+        if proxy_cfg.get("enabled", False)
+        else None
+    )
     allowed_ips: list[str] = cfg["server"].get("allowed_ips", []) or []
     # publishIPs always localhost-only; readIPs extended when whitelist is active
     _pub_ips = '["127.0.0.1", "::1"]'
@@ -158,6 +164,11 @@ def _build_mediamtx_config(cfg: dict[str, Any]) -> str:
         f"  {video_path}:",
         _path_cfg,
     ]
+    if proxy_path:
+        lines += [
+            f"  {proxy_path}:",
+            _path_cfg,
+        ]
     return "\n".join(lines) + "\n"
 
 
