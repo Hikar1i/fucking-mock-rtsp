@@ -37,9 +37,11 @@ h1 .dot.off { background: #ef4444; }
 
 /* ── rtsp url bar (prominent, below title, above video) ── */
 .rtsp-bar {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: flex-start; gap: 8px;
   padding: 9px 14px; background: #eff6ff; border-bottom: 1px solid #bfdbfe;
 }
+.rtsp-urls { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.rtsp-row  { display: flex; align-items: center; gap: 8px; }
 .rtsp-url {
   font-family: 'Courier New', monospace; font-size: 0.84rem; font-weight: 700;
   color: #1d4ed8; letter-spacing: 0.02em;
@@ -51,7 +53,7 @@ h1 .dot.off { background: #ef4444; }
 .rtsp-url:hover { background: #eff6ff; border-color: #3b82f6; }
 .copy-hint { font-size: 0.7rem; color: #16a34a; opacity: 0; transition: opacity 0.3s; white-space: nowrap; }
 .copy-hint.show { opacity: 1; }
-.rtsp-label { font-size: 0.72rem; font-weight: 700; color: #3b82f6; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.06em; }
+.rtsp-label { font-size: 0.72rem; font-weight: 700; color: #3b82f6; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.06em; padding-top: 7px; }
 
 /* ── preview ── */
 .preview { width: 100%; aspect-ratio: 16/9; background: #000; display: block; object-fit: contain; }
@@ -224,8 +226,16 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
   <!-- RTSP URL bar -->
   <div class="rtsp-bar">
     <span class="rtsp-label">RTSP</span>
-    <div class="rtsp-url" id="wcam-rtsp" onclick="copyRtsp('wcam-rtsp','wcam-copy')" title="点击复制">{{ webcam_rtsp }}</div>
-    <span class="copy-hint" id="wcam-copy">✓ 已复制</span>
+    <div class="rtsp-urls">
+      {% for url in webcam_rtsp_urls %}
+      <div class="rtsp-row">
+        <div class="rtsp-url" id="wcam-rtsp-{{ loop.index0 }}"
+             onclick="copyRtsp('wcam-rtsp-{{ loop.index0 }}','wcam-copy-{{ loop.index0 }}')"
+             title="点击复制">{{ url }}</div>
+        <span class="copy-hint" id="wcam-copy-{{ loop.index0 }}">✓ 已复制</span>
+      </div>
+      {% endfor %}
+    </div>
   </div>
 
   <div id="wcam-preview-area">
@@ -326,8 +336,16 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
   <!-- RTSP URL bar -->
   <div class="rtsp-bar">
     <span class="rtsp-label">RTSP</span>
-    <div class="rtsp-url" id="vid-rtsp" onclick="copyRtsp('vid-rtsp','vid-copy')" title="点击复制">{{ video_rtsp }}</div>
-    <span class="copy-hint" id="vid-copy">✓ 已复制</span>
+    <div class="rtsp-urls">
+      {% for url in video_rtsp_urls %}
+      <div class="rtsp-row">
+        <div class="rtsp-url" id="vid-rtsp-{{ loop.index0 }}"
+             onclick="copyRtsp('vid-rtsp-{{ loop.index0 }}','vid-copy-{{ loop.index0 }}')"
+             title="点击复制">{{ url }}</div>
+        <span class="copy-hint" id="vid-copy-{{ loop.index0 }}">✓ 已复制</span>
+      </div>
+      {% endfor %}
+    </div>
   </div>
 
   <div class="vid-preview-wrap" id="vid-preview-wrap">
@@ -731,22 +749,22 @@ function confirmRandom() {
     all_enabled: true,
     black_screen: false,
     noise_enabled: Math.random()>0.4,
-    noise_gaussian_sigma: rnd(0,50),
-    noise_sp_prob: rnd(0,0.08),
+    noise_gaussian_sigma: Math.round(rnd(0,50)),
+    noise_sp_prob: Math.round(rnd(0,0.08)*200)/200,
     blur_enabled: Math.random()>0.4,
     blur_type: Math.random()>0.5 ? 'gaussian' : 'motion',
     blur_kernel: Math.floor(rnd(1,15))*2+1,
     occlusion_enabled: Math.random()>0.5,
     occlusion_count: Math.floor(rnd(1,10)),
     occlusion_max_size: Math.floor(rnd(20,120)),
-    occlusion_refresh_sec: rnd(0.5,5),
+    occlusion_refresh_sec: Math.round(rnd(0.5,5)*2)/2,
     brightness_enabled: Math.random()>0.5,
-    brightness_value: rnd(-60,60),
+    brightness_value: Math.round(rnd(-60,60)),
     contrast_enabled: Math.random()>0.5,
-    contrast_value: rnd(0.5,2.5),
+    contrast_value: Math.round(rnd(0.5,2.5)*20)/20,
     color_enabled: Math.random()>0.5,
-    color_hue_shift: rnd(-180,180),
-    color_saturation: rnd(0.2,2.0),
+    color_hue_shift: Math.round(rnd(-180,180)),
+    color_saturation: Math.round(rnd(0.2,2.0)*20)/20,
   };
   fetch(efxApi(s), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(patch)})
     .then(r=>r.json()).then(cfg=>syncEffectUI(s, cfg));
