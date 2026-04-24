@@ -149,6 +149,74 @@ def _fallback_ips() -> list[str]:
     return []
 
 
+# ── 干扰效果参数限制默认值（与 config.yaml 中 effects_limits 保持一致）────────
+_DEFAULT_EFFECTS_LIMITS: dict[str, Any] = {
+    "noise": {
+        "gaussian_sigma": {"min": 0,    "max": 120,  "default": 20},
+        "sp_prob":         {"min": 0.0,  "max": 0.30, "default": 0.03},
+    },
+    "blur": {
+        "kernel":         {"min": 1,    "max": 51,   "default": 7},
+        "motion_angle":   {"min": 0.0,  "max": 360.0,"default": 0.0},
+        "motion_length":  {"min": 1,    "max": 51,   "default": 15},
+    },
+    "occlusion": {
+        "count":          {"min": 1,    "max": 50,   "default": 3},
+        "max_size":       {"min": 10,   "max": 400,  "default": 80},
+        "refresh_sec":    {"min": 0.5,  "max": 10.0, "default": 2.0},
+    },
+    "brightness": {
+        "value":          {"min": -150, "max": 150,  "default": 0},
+    },
+    "contrast": {
+        "value":          {"min": 0.1,  "max": 5.0,  "default": 1.0},
+    },
+    "color": {
+        "hue_shift":         {"min": -180, "max": 180,  "default": 0},
+        "saturation":        {"min": 0.0,  "max": 4.0,  "default": 1.0},
+        "temperature":       {"min": -100, "max": 100,  "default": 0},
+        "brightness_bias":   {"min": 0.0,  "max": 1.0,  "default": 0.5},
+    },
+    "mosaic": {
+        "block_size":     {"min": 2,    "max": 64,   "default": 16},
+        "blur_radius":    {"min": 0,    "max": 15,   "default": 0},
+    },
+    "overlay": {
+        "opacity":        {"min": 0.0,  "max": 1.0,  "default": 0.5},
+    },
+}
+
+
+def _validate_limit_leaf(value: Any, fallback: dict[str, Any]) -> dict[str, Any]:
+    """验证并返回 {min, max, default} 叶节点，值非法时回退到默认值。"""
+    result = dict(fallback)
+    for key in ("min", "max", "default"):
+        v = value.get(key, fallback[key]) if isinstance(value, dict) else fallback[key]
+        try:
+            v = float(v)
+        except (TypeError, ValueError):
+            v = float(fallback[key])
+        result[key] = v
+    if result["min"] > result["max"]:
+        result["min"], result["max"] = fallback["min"], fallback["max"]
+    if not (result["min"] <= result["default"] <= result["max"]):
+        result["default"] = fallback["default"]
+    return result
+
+
+def load_effects_limits(cfg: dict[str, Any]) -> dict[str, Any]:
+    """加载并校验配置中的 effects_limits 区块，缺失或非法的叶节点自动回退到内置默认值。"""
+    raw: dict = cfg.get("effects_limits", {}) or {}
+    out: dict[str, Any] = {}
+    for group, params in _DEFAULT_EFFECTS_LIMITS.items():
+        out[group] = {}
+        raw_group = raw.get(group, {}) or {}
+        for param, fallback in params.items():
+            raw_leaf = raw_group.get(param, {}) or {}
+            out[group][param] = _validate_limit_leaf(raw_leaf, fallback)
+    return out
+
+
 def get_mediamtx_bin(cfg: dict[str, Any]) -> Path:
     bin_dir = Path(cfg["mediamtx"]["bin_dir"])
     if not bin_dir.is_absolute():

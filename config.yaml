@@ -2,24 +2,24 @@ server:
   rtsp_port: 8554
   web_port: 8080
   host: "0.0.0.0"
-  # IP whitelist for web UI and RTSP: empty = allow all; add IPs to restrict.
-  # 127.0.0.1 and ::1 are always allowed regardless of this list.
-  # Example: ["192.168.1.100", "10.0.0.5"]
+  # IP 白名单（适用于网页界面和 RTSP）：留空表示允许所有来源；填写 IP 可限制访问。
+  # 127.0.0.1 和 ::1 始终允许，不受此列表限制。
+  # 示例：["192.168.1.100", "10.0.0.5"]
   allowed_ips: ["192.168.3.168", "192.168.3.205"]
 
 webcam:
   enabled: true
-  web_preview: true     # set false to skip MJPEG encoding and disable web preview
+  web_preview: true     # 设为 false 可跳过 MJPEG 编码并禁用网页预览
   device_id: 0
-  # Requested resolution; webcam will use nearest supported mode.
-  width: 1024
-  height: 576
+  # 请求的分辨率，摄像头会选择最接近的支持模式
+  width: 1280
+  height: 720
   fps: 25
   rtsp_path: "/webcam"
 
 video:
   enabled: true
-  web_preview: true     # set false to skip MJPEG encoding and disable web preview
+  web_preview: true     # 设为 false 可跳过 MJPEG 编码并禁用网页预览
   default_file: ""
   videos_dir: "videos"
   loop: true
@@ -30,15 +30,15 @@ video:
 
 rtsp_proxy:
   enabled: true
-  web_preview: true     # set false to skip MJPEG encoding and disable web preview
+  web_preview: true     # 设为 false 可跳过 MJPEG 编码并禁用网页预览
   source_url: "rtsp://admin:kd123456@192.168.100.14:554"
-  # Output resolution pushed to MediaMTX (source will be resized if different)
+  # 推送至 MediaMTX 的输出分辨率（源流会被缩放以匹配）
   width: 1024
   height: 576
   fps: 25
   rtsp_path: "/proxy"
-  reconnect_delay: 3      # seconds to wait before auto-reconnect
-  open_timeout: 10        # seconds to wait for RTSP source to open
+  reconnect_delay: 3      # 自动重连前的等待秒数
+  open_timeout: 10        # 等待 RTSP 源打开的超时秒数
 
 mediamtx:
   bin_dir: "bin"
@@ -49,3 +49,91 @@ encoding:
   encoder: "auto"
   bitrate: "2M"
   preset: "ultrafast"
+
+# ── 干扰效果参数限制 / 默认值 ──────────────────────────────────────────────────
+# 每个叶节点包含：min（最小值）、max（最大值）、default（默认值）。
+# 超出 [min, max] 范围的值在启动时会被静默重置为 default。
+effects_limits:
+  noise:
+    gaussian_sigma:      # 高斯噪点标准差；OpenCV 理论上无上限，推荐 0-120
+      min: 0
+      max: 120
+      default: 20
+    sp_prob:             # 椒盐噪点概率 [0.0, 1.0]
+      min: 0.0
+      max: 0.30
+      default: 0.03
+
+  blur:
+    kernel:              # 高斯模糊核边长（奇数）；OpenCV 理论上无上限
+      min: 1
+      max: 51
+      default: 7
+    motion_angle:        # 运动模糊方向角（度）
+      min: 0.0
+      max: 360.0
+      default: 0.0
+    motion_length:       # 运动模糊核长度（像素）；OpenCV 理论上无上限
+      min: 1
+      max: 51
+      default: 15
+
+  occlusion:
+    count:               # 遮挡块数量；OpenCV 理论上无上限
+      min: 1
+      max: 50
+      default: 3
+    max_size:            # 遮挡块最大边长（像素）；上限为帧尺寸
+      min: 10
+      max: 400
+      default: 80
+    refresh_sec:         # 遮挡块位置刷新间隔（秒）
+      min: 0.5
+      max: 10.0
+      default: 2.0
+
+  brightness:
+    value:               # cv2.convertScaleAbs beta 参数；OpenCV 最大 ±255（截断）
+      min: -150
+      max: 150
+      default: 0
+
+  contrast:
+    value:               # cv2.convertScaleAbs alpha 参数；0.0=全黑，OpenCV 理论上无上限
+      min: 0.1
+      max: 5.0
+      default: 1.0
+
+  color:
+    hue_shift:           # HSV 色调偏移（度）；OpenCV H 通道范围 0-180（循环）
+      min: -180
+      max: 180
+      default: 0
+    saturation:          # HSV S 通道乘数（0-255）；OpenCV 理论上无上限（截断）
+      min: 0.0
+      max: 4.0
+      default: 1.0
+    temperature:         # 色温偏移：正值偏暖，负值偏冷；OpenCV 最大 ±255
+      min: -100
+      max: 100
+      default: 0
+    brightness_bias:     # 明度偏置：0.0=全黑，0.5=不变，1.0=全白
+      min: 0.0
+      max: 1.0
+      default: 0.5
+
+  mosaic:
+    block_size:          # 马赛克像素化块大小（像素）；最小 2（1=无效果）
+      min: 2
+      max: 64
+      default: 16
+    blur_radius:         # 马赛克后叠加高斯模糊半径；0=不模糊
+      min: 0
+      max: 15
+      default: 0
+
+  overlay:
+    opacity:             # 蒙版不透明度：0.0=完全透明，1.0=完全不透明
+      min: 0.0
+      max: 1.0
+      default: 0.5

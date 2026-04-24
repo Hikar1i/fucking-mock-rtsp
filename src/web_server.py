@@ -1,4 +1,4 @@
-"""FastAPI web server: MJPEG preview streams, REST control API, monitoring page."""
+"""FastAPI Web 服务器：MJPEG 预览流、REST 控制 API 与监控页面。"""
 
 import asyncio
 import logging
@@ -11,7 +11,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from src.config import list_videos, get_videos_dir, get_host_ips
+from src.config import list_videos, get_videos_dir, get_host_ips, load_effects_limits
 from src.webcam_streamer import WebcamStreamer
 from src.video_streamer import VideoStreamer
 from src.rtsp_proxy_streamer import RtspProxyStreamer, mask_url
@@ -38,7 +38,7 @@ async def _mjpeg_generator_bytes(
     placeholder_bytes: bytes,
     fps: int = 12,
 ) -> AsyncGenerator[bytes, None]:
-    """MJPEG generator that consumes pre-encoded JPEG bytes (no re-encoding overhead)."""
+    """消耗预编码 JPEG 字节的 MJPEG 生成器（无重复编码开销）。"""
     interval = 1.0 / fps
     while True:
         start = asyncio.get_event_loop().time()
@@ -62,7 +62,7 @@ def create_app(
 ) -> FastAPI:
     app = FastAPI(title="Local Mock RTSP", version="0.1.0")
 
-    # ── IP whitelist middleware ──────────────────────────────────────────────
+    # ── IP 白名单中间件 ──────────────────────────────────────────────
     _raw_ips: list[str] = cfg["server"].get("allowed_ips", []) or []
     if _raw_ips:
         _allowed_ips: frozenset[str] = frozenset(_raw_ips) | {"127.0.0.1", "::1", "::ffff:127.0.0.1", "localhost"}
@@ -79,12 +79,14 @@ def create_app(
         cache_size=0,
     )
 
+    el = load_effects_limits(cfg)   # 已校验的效果参数限制字典
+
     rtsp_port = cfg["server"]["rtsp_port"]
     _host_ips = get_host_ips() or ["localhost"]
     webcam_rtsp_urls = [f"rtsp://{ip}:{rtsp_port}{cfg['webcam']['rtsp_path']}" for ip in _host_ips]
     video_rtsp_urls = [f"rtsp://{ip}:{rtsp_port}{cfg['video']['rtsp_path']}" for ip in _host_ips]
-    webcam_rtsp = webcam_rtsp_urls[0]  # primary for status API
-    video_rtsp = video_rtsp_urls[0]    # primary for status API
+    webcam_rtsp = webcam_rtsp_urls[0]  # 状态 API 主 URL
+    video_rtsp = video_rtsp_urls[0]    # 状态 API 主 URL
     proxy_rtsp_urls: list[str] = []
     proxy_rtsp: str = ""
     proxy_source_masked: str = ""
@@ -93,12 +95,12 @@ def create_app(
         proxy_rtsp = proxy_rtsp_urls[0]
         proxy_source_masked = mask_url(cfg["rtsp_proxy"]["source_url"])
 
-    # ── web_preview flags (per-stream) ──────────────────────────────────────
+    # ── 每路流网页预览开关 ──────────────────────────────────────
     webcam_web_preview: bool = bool(cfg["webcam"].get("web_preview", True))
     video_web_preview: bool  = bool(cfg["video"].get("web_preview", True))
     proxy_web_preview: bool  = bool(cfg.get("rtsp_proxy", {}).get("web_preview", True))
 
-    # ------------------------------------------------------------------ pages
+    # ------------------------------------------------------------------ 页面路由
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request):
         videos = list_videos(cfg)
@@ -118,11 +120,12 @@ def create_app(
             proxy_web_preview=proxy_web_preview,
             proxy_rtsp_urls=proxy_rtsp_urls,
             proxy_source_masked=proxy_source_masked,
+            el=el,
         )
         return HTMLResponse(rendered)
 
-    # --------------------------------------------------------------- MJPEG streams
-    # ── proxy MJPEG + API routes (only registered when proxy is enabled) ──────
+    # --------------------------------------------------------------- MJPEG 流路由
+    # ── 代理流 MJPEG + API（仅当代理开启时注册） ──────
     if proxy is not None:
         @app.get("/stream/proxy")
         async def stream_proxy():
@@ -179,7 +182,7 @@ def create_app(
             media_type="multipart/x-mixed-replace; boundary=frame",
         )
 
-    # --------------------------------------------------------------- webcam API
+    # --------------------------------------------------------------- 摄像头 API
     @app.post("/api/webcam/enable")
     async def webcam_enable():
         if not webcam.available:
@@ -192,7 +195,7 @@ def create_app(
         webcam.disable()
         return {"ok": True, "enabled": webcam.enabled}
 
-    # --------------------------------------------------------------- video API
+    # --------------------------------------------------------------- 视频 API
     @app.post("/api/video/play")
     async def video_play():
         video.play()
@@ -257,7 +260,7 @@ def create_app(
         video.disable_streaming()
         return {"ok": True, "streaming": video.state.streaming}
 
-    # --------------------------------------------------------------- effects API
+    # --------------------------------------------------------------- 干扰效果 API
     @app.get("/api/webcam/effects")
     async def webcam_effects_get():
         return webcam.effects.get_config()
@@ -282,7 +285,7 @@ def create_app(
         video.effects.update_config(data)
         return video.effects.get_config()
 
-    # --------------------------------------------------------------- status API
+    # --------------------------------------------------------------- 状态 API
     @app.get("/api/status")
     async def status():
         videos = list_videos(cfg)

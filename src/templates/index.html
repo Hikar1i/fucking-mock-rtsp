@@ -12,19 +12,19 @@ body {
   background: #f1f5f9;
   color: #1e293b;
   min-height: 100vh;
-  padding: 18px 20px 40px;
+  padding: 18px 0 40px;
 }
-.page-wrap { max-width: 1440px; margin: 0 auto; }
+.page-wrap { width: 95%; max-width: none; margin: 0 auto; }
 h1 {
   font-size: 1.35rem; font-weight: 700; color: #1e293b;
   letter-spacing: 0.04em; margin-bottom: 18px;
   display: flex; align-items: center; gap: 10px;
-  max-width: 1440px; margin-left: auto; margin-right: auto;
 }
 h1 .dot { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; display: inline-block; }
 h1 .dot.off { background: #ef4444; }
+h1 .h1-spacer { flex: 1; min-width: 0; }
 
-.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; max-width: 1440px; margin: 0 auto; align-items: start; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
 @media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
 
 /* ── card ── */
@@ -148,7 +148,7 @@ select {
 /* effect section: toggle header + 2-col params */
 .eff-section { display: flex; flex-direction: column; gap: 8px; }
 .eff-hdr { display: flex; align-items: center; gap: 6px; }
-.eff-sw-btn { min-width: 64px; text-align: center; }
+.eff-sw-btn { min-width: 5.5rem; text-align: center; }
 .eff-params {
   display: grid; grid-template-columns: 1fr 1fr; gap: 5px 10px;
 }
@@ -167,8 +167,96 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
 .chk-item { display: flex; align-items: center; gap: 4px; font-size: 0.74rem; color: #475569; cursor: pointer; white-space: nowrap; }
 .chk-item input { accent-color: #6366f1; cursor: pointer; }
 
+/* ── reset button inside eff-hdr ── */
+.btn-reset {
+  background: none; border: 1px solid #e2e8f0; border-radius: 4px;
+  cursor: pointer; font-size: 0.68rem; color: #94a3b8;
+  padding: 2px 7px; line-height: 1.4; transition: all 0.15s; white-space: nowrap; flex-shrink: 0;
+}
+.btn-reset:hover { color: #f97316; border-color: #fdba74; background: #fff7ed; }
+.btn-reset:active { transform: none !important; opacity: 1 !important; }
+
+/* ── rainbow hue slider ── */
+input[type="range"].hue-range {
+  -webkit-appearance: none; appearance: none;
+  height: 12px !important; border-radius: 6px;
+  background: linear-gradient(to right,
+    hsl(0,100%,50%),hsl(30,100%,50%),hsl(60,100%,50%),hsl(90,100%,50%),
+    hsl(120,100%,50%),hsl(150,100%,50%),hsl(180,100%,50%),hsl(210,100%,50%),
+    hsl(240,100%,50%),hsl(270,100%,50%),hsl(300,100%,50%),hsl(330,100%,50%),
+    hsl(360,100%,50%)) !important;
+  accent-color: unset;
+}
+input[type="range"].hue-range::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; border: 2px solid rgba(0,0,0,0.25);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3); cursor: pointer;
+}
+input[type="range"].hue-range::-moz-range-thumb {
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; border: 2px solid rgba(0,0,0,0.25);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3); cursor: pointer;
+}
+
+/* ── 明度滑条：初始黑→灰→白，JS 动态更新蒙版颜色渐变 ── */
+input[type="range"].bright-range {
+  -webkit-appearance: none; appearance: none;
+  height: 12px !important; border-radius: 6px;
+  background: linear-gradient(to right, #000000, #888888, #ffffff) !important;
+  accent-color: unset;
+}
+input[type="range"].bright-range::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; border: 2px solid rgba(0,0,0,0.25);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3); cursor: pointer;
+}
+input[type="range"].bright-range::-moz-range-thumb {
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; border: 2px solid rgba(0,0,0,0.25);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3); cursor: pointer;
+}
+
+/* ── overlay section ── */
+.overlay-presets { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.preset-btn {
+  border: 1.5px solid transparent; border-radius: 5px;
+  font-size: 0.7rem; font-weight: 600; cursor: pointer; padding: 3px 9px;
+  transition: all 0.15s;
+}
+.preset-btn:hover { opacity: 0.82; transform: translateY(-1px); }
+.preset-btn.p-black { background: #1e293b; color: #fff; border-color: #0f172a; }
+.preset-btn.p-white { background: #fff; color: #475569; border-color: #cbd5e1; }
+.preset-btn.p-gray  { background: #94a3b8; color: #fff; border-color: #64748b; }
+.overlay-swatch { width: 20px; height: 20px; border-radius: 4px; border: 1.5px solid #cbd5e1; flex-shrink: 0; display: inline-block; background: #000; }
+.overlay-info { font-size: 0.7rem; color: #475569; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.overlay-info code { background: #f1f5f9; padding: 1px 5px; border-radius: 3px; font-family: monospace; font-size: 0.68rem; color: #1d4ed8; }
+
+/* ── help button & panel ── */
+.help-wrap { position: relative; flex-shrink: 0; }
+.help-btn {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: #e2e8f0; color: #64748b; border: 1.5px solid #cbd5e1;
+  font-size: 0.85rem; font-weight: 700; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0; transition: all 0.15s; flex-shrink: 0;
+}
+.help-btn:hover { background: #3b82f6; color: #fff; border-color: #3b82f6; transform: none !important; opacity: 1 !important; }
+.help-panel {
+  display: none; position: fixed; right: 2.5%; top: 62px;
+  background: #fff; border: 1px solid #e2e8f0;
+  border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+  padding: 18px 20px 16px; min-width: 300px; max-width: 400px; z-index: 300;
+}
+.help-panel.show { display: block; }
+.help-panel h3 { font-size: 0.85rem; font-weight: 700; color: #1e293b; margin-bottom: 10px; }
+.help-panel ul { list-style: none; display: flex; flex-direction: column; gap: 7px; }
+.help-panel li { font-size: 0.77rem; color: #475569; line-height: 1.55; }
+.help-panel li code { background: #f1f5f9; padding: 1px 5px; border-radius: 3px; font-family: monospace; font-size: 0.73rem; color: #1d4ed8; }
+.help-close { position: absolute; top: 10px; right: 12px; background: none; border: none; color: #94a3b8; font-size: 1rem; cursor: pointer; padding: 2px; line-height: 1; }
+.help-close:hover { color: #475569; transform: none !important; opacity: 1 !important; }
+
 /* ── flex spacer for vertical alignment ── */
-.eff-spacer { flex: 1; min-height: 0; }
+.eff-spacer { flex: 1; min-height: 30px; }
 /* ── video preview overlay ── */
 .vid-preview-wrap { position: relative; width: 100%; }
 .vid-overlay {
@@ -235,8 +323,27 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
 </style>
 </head>
 <body>
+<div class="page-wrap">
 
-<h1><span class="dot" id="mtx-dot"></span>Local Mock RTSP Monitor</h1>
+<h1>
+  <span class="dot" id="mtx-dot"></span>Local Mock RTSP Monitor
+  <span class="h1-spacer"></span>
+  <div class="help-wrap">
+    <button class="help-btn" onclick="toggleHelp()" title="功能说明">?</button>
+    <div class="help-panel" id="help-panel">
+      <button class="help-close" onclick="toggleHelp()">✕</button>
+      <h3>📖 功能说明</h3>
+      <ul>
+        <li>如需开启/关闭<strong>摄像头推流</strong>，可前往项目 <code>config.yaml</code> → <code>webcam.enabled</code> 中配置</li>
+        <li>如需开启/关闭<strong>视频文件流</strong>，可前往项目 <code>config.yaml</code> → <code>video.enabled</code> 中配置</li>
+        <li>如需开启/关闭<strong>真实RTSP代理流</strong>，可前往项目 <code>config.yaml</code> → <code>rtsp_proxy.enabled</code> 中配置</li>
+        <li>如需开启/关闭各流的<strong>网页预览</strong>，可前往项目 <code>config.yaml</code> → <code>*.web_preview</code> 中配置</li>
+        <li>如需调整<strong>干扰效果参数范围</strong>（最大/最小/默认值），可前往项目 <code>config.yaml</code> → <code>effects_limits</code> 中配置</li>
+        <li>如需配置<strong>IP访问白名单</strong>，可前往项目 <code>config.yaml</code> → <code>server.allowed_ips</code> 中配置</li>
+      </ul>
+    </div>
+  </div>
+</h1>
 
 <div class="grid">
 
@@ -299,6 +406,10 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
           onclick="wcamPreviewToggle()"
           {% if not webcam_web_preview %}disabled title="网页预览已在配置中禁用"{% endif %}
         >预览推流: {{ '开' if webcam_web_preview else '已禁用' }}</button>
+        <button class="btn-toggle btn-sm" id="wcam-mirror-btn"
+          onclick="toggleMirror()"
+          {% if not webcam_available %}disabled{% endif %}
+        >镜像反转: 关</button>
       {% else %}
         <button class="btn-gray btn-sm" disabled>摄像头不可用</button>
       {% endif %}
@@ -316,50 +427,70 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
         >干扰预览: {{ '已禁用' if not webcam_web_preview else '关' }}</button>
         <button class="btn-toggle" id="wcam-efx-all" onclick="toggleEffectAll('wcam')">干扰效果: 关</button>
         <button class="btn-toggle on-amber" id="wcam-efx-rand" onclick="triggerRandom('wcam')">生成随机干扰</button>
-        <button class="btn-toggle" id="wcam-black" onclick="toggleBlack('wcam')">画面全黑蒙版</button>
       </div>
       <!-- noise -->
       <div class="eff-section">
-        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="wcam-noise-sw" onclick="toggleEffect('wcam','noise')">噪 点</button></div>
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="wcam-noise-sw" onclick="toggleEffect('wcam','noise')">噪 点</button><button class="btn-reset" onclick="resetEffect('wcam','noise')" title="复位默认值">↺ 复位</button></div>
         <div class="eff-params">
-          <div class="eff-param"><span class="eff-lbl">高斯σ</span><input type="range" class="eff-range" id="wcam-noise-sigma" min="0" max="80" step="1" value="20" oninput="setEfxVal('wcam','noise_gaussian_sigma',this.value,'wcam-noise-sigma-v')"><span class="eff-val" id="wcam-noise-sigma-v">20</span></div>
-          <div class="eff-param"><span class="eff-lbl">椒盐%</span><input type="range" class="eff-range" id="wcam-noise-sp" min="0" max="15" step="0.5" value="3" oninput="setEfxVal('wcam','noise_sp_prob',this.value/100,'wcam-noise-sp-v',v=>(v*100).toFixed(1)+'%')"><span class="eff-val" id="wcam-noise-sp-v">3.0%</span></div>
+          <div class="eff-param"><span class="eff-lbl">高斯σ</span><input type="range" class="eff-range" id="wcam-noise-sigma" min="{{ el.noise.gaussian_sigma.min|int }}" max="{{ el.noise.gaussian_sigma.max|int }}" step="1" value="{{ el.noise.gaussian_sigma.default|int }}" oninput="setEfxVal('wcam','noise_gaussian_sigma',this.value,'wcam-noise-sigma-v')"><span class="eff-val" id="wcam-noise-sigma-v">{{ el.noise.gaussian_sigma.default|int }}</span></div>
+          <div class="eff-param"><span class="eff-lbl">椒盐%</span><input type="range" class="eff-range" id="wcam-noise-sp" min="0" max="{{ (el.noise.sp_prob.max*100)|round(1) }}" step="0.5" value="{{ (el.noise.sp_prob.default*100)|round(1) }}" oninput="setEfxVal('wcam','noise_sp_prob',this.value/100,'wcam-noise-sp-v',v=>(v*100).toFixed(1)+'%')"><span class="eff-val" id="wcam-noise-sp-v">{{ (el.noise.sp_prob.default*100)|round(1) }}%</span></div>
         </div>
       </div>
       <!-- blur -->
       <div class="eff-section">
-        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="wcam-blur-sw" onclick="toggleEffect('wcam','blur')">模 糊</button></div>
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="wcam-blur-sw" onclick="toggleEffect('wcam','blur')">模 糊</button><button class="btn-reset" onclick="resetEffect('wcam','blur')" title="复位默认值">↺ 复位</button></div>
         <div class="eff-params">
           <div class="eff-param"><span class="eff-lbl">类型</span><select id="wcam-blur-type" onchange="setEfx('wcam',{blur_type:this.value})"><option value="gaussian">高斯</option><option value="motion">运动</option></select></div>
-          <div class="eff-param"><span class="eff-lbl">强度</span><input type="range" class="eff-range" id="wcam-blur-k" min="1" max="31" step="2" value="7" oninput="setEfxVal('wcam','blur_kernel',+this.value,'wcam-blur-k-v')"><span class="eff-val" id="wcam-blur-k-v">7</span></div>
+          <div class="eff-param"><span class="eff-lbl">强度</span><input type="range" class="eff-range" id="wcam-blur-k" min="{{ el.blur.kernel.min|int }}" max="{{ el.blur.kernel.max|int }}" step="2" value="{{ el.blur.kernel.default|int }}" oninput="setEfxVal('wcam','blur_kernel',+this.value,'wcam-blur-k-v')"><span class="eff-val" id="wcam-blur-k-v">{{ el.blur.kernel.default|int }}</span></div>
+          <div class="eff-param"><span class="eff-lbl">运动角</span><input type="range" class="eff-range" id="wcam-blur-ma" min="{{ el.blur.motion_angle.min|int }}" max="{{ el.blur.motion_angle.max|int }}" step="1" value="{{ el.blur.motion_angle.default|int }}" oninput="setEfxVal('wcam','blur_motion_angle',+this.value,'wcam-blur-ma-v',v=>v+'°')"><span class="eff-val" id="wcam-blur-ma-v">{{ el.blur.motion_angle.default|int }}°</span></div>
+          <div class="eff-param"><span class="eff-lbl">运动长</span><input type="range" class="eff-range" id="wcam-blur-ml" min="{{ el.blur.motion_length.min|int }}" max="{{ el.blur.motion_length.max|int }}" step="1" value="{{ el.blur.motion_length.default|int }}" oninput="setEfxVal('wcam','blur_motion_length',+this.value,'wcam-blur-ml-v')"><span class="eff-val" id="wcam-blur-ml-v">{{ el.blur.motion_length.default|int }}</span></div>
         </div>
+      </div>
+      <!-- mosaic -->
+      <div class="eff-section">
+          <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="wcam-mosaic-sw" onclick="toggleEffect('wcam','mosaic')">马赛克</button><button class="btn-reset" onclick="resetEffect('wcam','mosaic')" title="复位默认值">↺ 复位</button></div>
+          <div class="eff-params">
+              <div class="eff-param"><span class="eff-lbl">块大小</span><input type="range" class="eff-range" id="wcam-mosaic-bs" min="{{ el.mosaic.block_size.min|int }}" max="{{ el.mosaic.block_size.max|int }}" step="1" value="{{ el.mosaic.block_size.default|int }}" oninput="setEfxVal('wcam','mosaic_block_size',+this.value,'wcam-mosaic-bs-v',v=>v+'px')"><span class="eff-val" id="wcam-mosaic-bs-v">{{ el.mosaic.block_size.default|int }}px</span></div>
+              <div class="eff-param"><span class="eff-lbl">模糊程度</span><input type="range" class="eff-range" id="wcam-mosaic-blur" min="{{ el.mosaic.blur_radius.min|int }}" max="{{ el.mosaic.blur_radius.max|int }}" step="1" value="{{ el.mosaic.blur_radius.default|int }}" oninput="setEfxVal('wcam','mosaic_blur_radius',+this.value,'wcam-mosaic-blur-v')"><span class="eff-val" id="wcam-mosaic-blur-v">{{ el.mosaic.blur_radius.default|int }}</span></div>
+          </div>
       </div>
       <!-- occlusion -->
       <div class="eff-section">
-        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="wcam-occ-sw" onclick="toggleEffect('wcam','occ')">遮挡块</button></div>
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="wcam-occ-sw" onclick="toggleEffect('wcam','occ')">遮挡块</button><button class="btn-reset" onclick="resetEffect('wcam','occ')" title="复位默认值">↺ 复位</button></div>
         <div class="eff-params">
-          <div class="eff-param"><span class="eff-lbl">数量</span><input type="range" class="eff-range" id="wcam-occ-cnt" min="1" max="20" step="1" value="3" oninput="setEfxVal('wcam','occlusion_count',+this.value,'wcam-occ-cnt-v')"><span class="eff-val" id="wcam-occ-cnt-v">3</span></div>
-          <div class="eff-param"><span class="eff-lbl">最大px</span><input type="range" class="eff-range" id="wcam-occ-sz" min="10" max="200" step="5" value="80" oninput="setEfxVal('wcam','occlusion_max_size',+this.value,'wcam-occ-sz-v')"><span class="eff-val" id="wcam-occ-sz-v">80</span></div>
-          <div class="eff-param"><span class="eff-lbl">刷新s</span><input type="range" class="eff-range" id="wcam-occ-ref" min="0.5" max="10" step="0.5" value="2" oninput="setEfxVal('wcam','occlusion_refresh_sec',+this.value,'wcam-occ-ref-v',v=>v+'s')"><span class="eff-val" id="wcam-occ-ref-v">2s</span></div>
+          <div class="eff-param"><span class="eff-lbl">数量</span><input type="range" class="eff-range" id="wcam-occ-cnt" min="{{ el.occlusion.count.min|int }}" max="{{ el.occlusion.count.max|int }}" step="1" value="{{ el.occlusion.count.default|int }}" oninput="setEfxVal('wcam','occlusion_count',+this.value,'wcam-occ-cnt-v')"><span class="eff-val" id="wcam-occ-cnt-v">{{ el.occlusion.count.default|int }}</span></div>
+          <div class="eff-param"><span class="eff-lbl">最大px</span><input type="range" class="eff-range" id="wcam-occ-sz" min="{{ el.occlusion.max_size.min|int }}" max="{{ el.occlusion.max_size.max|int }}" step="5" value="{{ el.occlusion.max_size.default|int }}" oninput="setEfxVal('wcam','occlusion_max_size',+this.value,'wcam-occ-sz-v')"><span class="eff-val" id="wcam-occ-sz-v">{{ el.occlusion.max_size.default|int }}</span></div>
+          <div class="eff-param"><span class="eff-lbl">刷新s</span><input type="range" class="eff-range" id="wcam-occ-ref" min="{{ el.occlusion.refresh_sec.min }}" max="{{ el.occlusion.refresh_sec.max }}" step="0.5" value="{{ el.occlusion.refresh_sec.default }}" oninput="setEfxVal('wcam','occlusion_refresh_sec',+this.value,'wcam-occ-ref-v',v=>v+'s')"><span class="eff-val" id="wcam-occ-ref-v">{{ el.occlusion.refresh_sec.default }}s</span></div>
           <div class="eff-param"><span class="eff-lbl">颜色</span><div class="chk-group"><label class="chk-item"><input type="checkbox" id="wcam-occ-black" checked onchange="updateOccColors('wcam')"> 黑</label><label class="chk-item"><input type="checkbox" id="wcam-occ-white" onchange="updateOccColors('wcam')"> 白</label><label class="chk-item"><input type="checkbox" id="wcam-occ-gray" onchange="updateOccColors('wcam')"> 灰</label></div></div>
         </div>
       </div>
-      <!-- brightness -->
-      <div class="eff-section">
-        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="wcam-bright-sw" onclick="toggleEffect('wcam','bright')">亮 度</button></div>
-        <div class="eff-params"><div class="eff-param span2"><span class="eff-lbl">亮度值</span><input type="range" class="eff-range" id="wcam-bright-v" min="-100" max="100" step="1" value="0" oninput="setEfxVal('wcam','brightness_value',+this.value,'wcam-bright-disp',v=>v>0?'+'+v:v)"><span class="eff-val" id="wcam-bright-disp">0</span></div></div>
+        <!-- brightness/contrast -->
+        <div class="eff-section">
+          <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="wcam-bc-sw" onclick="toggleEffect('wcam','bc')">亮度/对比度</button><button class="btn-reset" onclick="resetEffect('wcam','bc')" title="复位默认值">↺ 复位</button></div>
+          <div class="eff-params">
+            <div class="eff-param"><span class="eff-lbl">亮度值</span><input type="range" class="eff-range" id="wcam-bright-v" min="{{ el.brightness.value.min|int }}" max="{{ el.brightness.value.max|int }}" step="1" value="{{ el.brightness.value.default|int }}" oninput="setEfxVal('wcam','brightness_value',+this.value,'wcam-bright-disp',v=>v>0?'+'+v:v)"><span class="eff-val" id="wcam-bright-disp">{{ el.brightness.value.default|int }}</span></div>
+            <div class="eff-param"><span class="eff-lbl">对比度</span><input type="range" class="eff-range" id="wcam-cont-v" min="{{ el.contrast.value.min }}" max="{{ el.contrast.value.max }}" step="0.05" value="{{ el.contrast.value.default }}" oninput="setEfxVal('wcam','contrast_value',+this.value,'wcam-cont-disp',v=>parseFloat(v).toFixed(2)+'×')"><span class="eff-val" id="wcam-cont-disp">{{ el.contrast.value.default }}×</span></div>
+        </div>
       </div>
-      <!-- contrast -->
-      <div class="eff-section">
-        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="wcam-cont-sw" onclick="toggleEffect('wcam','cont')">对比度</button></div>
-        <div class="eff-params"><div class="eff-param span2"><span class="eff-lbl">倍率</span><input type="range" class="eff-range" id="wcam-cont-v" min="0.3" max="3.0" step="0.05" value="1.0" oninput="setEfxVal('wcam','contrast_value',+this.value,'wcam-cont-disp',v=>parseFloat(v).toFixed(2)+'×')"><span class="eff-val" id="wcam-cont-disp">1.00×</span></div></div>
+        <!-- color -->
+        <div class="eff-section">
+          <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="wcam-color-sw" onclick="toggleEffect('wcam','color')">颜 色</button><button class="btn-reset" onclick="resetEffect('wcam','color')" title="复位默认值">↺ 复位</button></div>
+          <div class="eff-params">
+            <div class="eff-param"><span class="eff-lbl">色调</span><input type="range" class="eff-range" id="wcam-hue" min="{{ el.color.hue_shift.min|int }}" max="{{ el.color.hue_shift.max|int }}" step="1" value="{{ el.color.hue_shift.default|int }}" oninput="setEfxVal('wcam','color_hue_shift',+this.value,'wcam-hue-v',v=>v+'°')"><span class="eff-val" id="wcam-hue-v">{{ el.color.hue_shift.default|int }}°</span></div>
+            <div class="eff-param"><span class="eff-lbl">饱和</span><input type="range" class="eff-range" id="wcam-sat" min="{{ el.color.saturation.min }}" max="{{ el.color.saturation.max }}" step="0.05" value="{{ el.color.saturation.default }}" oninput="setEfxVal('wcam','color_saturation',+this.value,'wcam-sat-v',v=>parseFloat(v).toFixed(2))"><span class="eff-val" id="wcam-sat-v">{{ el.color.saturation.default }}</span></div>
+            <div class="eff-param"><span class="eff-lbl">色温</span><input type="range" class="eff-range" id="wcam-temp" min="{{ el.color.temperature.min|int }}" max="{{ el.color.temperature.max|int }}" step="1" value="{{ el.color.temperature.default|int }}" oninput="setEfxVal('wcam','color_temperature',+this.value,'wcam-temp-v',v=>(v>0?'+':'')+v+'℃')"><span class="eff-val" id="wcam-temp-v">{{ el.color.temperature.default|int }}℃</span></div>
+            <div class="eff-param"><span class="eff-lbl">明度</span><input type="range" class="eff-range bright-range" id="wcam-color-bright" min="0" max="100" step="1" value="{{ (el.color.brightness_bias.default*100)|int }}" oninput="setEfxVal('wcam','color_brightness_bias',this.value/100,'wcam-color-bright-v',v=>(v*100).toFixed(0)+'%')"><span class="eff-val" id="wcam-color-bright-v">{{ (el.color.brightness_bias.default*100)|int }}%</span></div>
+            <div class="eff-param span2"><button class="btn-toggle btn-sm eff-sw-btn" id="wcam-invert-btn" onclick="toggleColorInvert('wcam')">反相: 关</button></div>
+        </div>
       </div>
-      <!-- color -->
+      <!-- overlay -->
       <div class="eff-section">
-        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="wcam-color-sw" onclick="toggleEffect('wcam','color')">颜 色</button></div>
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="wcam-overlay-sw" onclick="toggleEffect('wcam','overlay')">纯色蒙版</button><button class="btn-reset" onclick="resetEffect('wcam','overlay')" title="复位默认值">↺ 复位</button></div>
         <div class="eff-params">
-          <div class="eff-param"><span class="eff-lbl">色调</span><input type="range" class="eff-range" id="wcam-hue" min="-180" max="180" step="1" value="0" oninput="setEfxVal('wcam','color_hue_shift',+this.value,'wcam-hue-v',v=>v+'°')"><span class="eff-val" id="wcam-hue-v">0°</span></div>
-          <div class="eff-param"><span class="eff-lbl">饱和</span><input type="range" class="eff-range" id="wcam-sat" min="0" max="2" step="0.05" value="1" oninput="setEfxVal('wcam','color_saturation',+this.value,'wcam-sat-v',v=>parseFloat(v).toFixed(2))"><span class="eff-val" id="wcam-sat-v">1.00</span></div>
+          <div class="eff-param span2" style="align-items:center;gap:6px"><span class="eff-lbl">颜色</span><span class="overlay-swatch" id="wcam-overlay-swatch" style="background:#000"></span><span class="overlay-info"><span id="wcam-overlay-name">黑色</span>&nbsp;<code id="wcam-overlay-hex">#000000</code></span><div class="overlay-presets" style="margin-left:auto"><button class="preset-btn p-black" onclick="setOverlayPreset('wcam',0,0,0,0,0)">全黑蒙版</button><button class="preset-btn p-white" onclick="setOverlayPreset('wcam',255,255,255,100,0)">全白蒙版</button><button class="preset-btn p-gray" onclick="setOverlayPreset('wcam',128,128,128,50,0)">全灰蒙版</button></div></div>
+          <div class="eff-param span2"><span class="eff-lbl">色相</span><input type="range" class="eff-range hue-range" id="wcam-overlay-hue" min="0" max="360" step="1" value="0" oninput="setOverlayHue('wcam',this.value)"></div>
+          <div class="eff-param"><span class="eff-lbl">明度</span><input type="range" class="eff-range bright-range" id="wcam-overlay-bright" min="0" max="100" step="1" value="50" oninput="setOverlayBright('wcam',this.value)"><span class="eff-val" id="wcam-overlay-bright-v">50%</span></div>
+          <div class="eff-param"><span class="eff-lbl">透明度</span><input type="range" class="eff-range" id="wcam-overlay-opacity" min="{{ el.overlay.opacity.min }}" max="{{ el.overlay.opacity.max }}" step="0.01" value="{{ el.overlay.opacity.default }}" oninput="setEfxVal('wcam','overlay_opacity',+this.value,'wcam-overlay-opacity-v',v=>(v*100).toFixed(0)+'%')"><span class="eff-val" id="wcam-overlay-opacity-v">{{ (el.overlay.opacity.default*100)|int }}%</span></div>
         </div>
       </div>
     </div><!-- /effect-panel -->
@@ -455,50 +586,70 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
         >干扰预览: {{ '已禁用' if not video_web_preview else '关' }}</button>
         <button class="btn-toggle" id="vid-efx-all" onclick="toggleEffectAll('vid')">干扰效果: 关</button>
         <button class="btn-toggle on-amber" id="vid-efx-rand" onclick="triggerRandom('vid')">生成随机干扰</button>
-        <button class="btn-toggle" id="vid-black" onclick="toggleBlack('vid')">画面全黑蒙版</button>
       </div>
       <!-- noise -->
       <div class="eff-section">
-        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="vid-noise-sw" onclick="toggleEffect('vid','noise')">噪 点</button></div>
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="vid-noise-sw" onclick="toggleEffect('vid','noise')">噪 点</button><button class="btn-reset" onclick="resetEffect('vid','noise')" title="复位默认值">↺ 复位</button></div>
         <div class="eff-params">
-          <div class="eff-param"><span class="eff-lbl">高斯σ</span><input type="range" class="eff-range" id="vid-noise-sigma" min="0" max="80" step="1" value="20" oninput="setEfxVal('vid','noise_gaussian_sigma',this.value,'vid-noise-sigma-v')"><span class="eff-val" id="vid-noise-sigma-v">20</span></div>
-          <div class="eff-param"><span class="eff-lbl">椒盐%</span><input type="range" class="eff-range" id="vid-noise-sp" min="0" max="15" step="0.5" value="3" oninput="setEfxVal('vid','noise_sp_prob',this.value/100,'vid-noise-sp-v',v=>(v*100).toFixed(1)+'%')"><span class="eff-val" id="vid-noise-sp-v">3.0%</span></div>
+          <div class="eff-param"><span class="eff-lbl">高斯σ</span><input type="range" class="eff-range" id="vid-noise-sigma" min="{{ el.noise.gaussian_sigma.min|int }}" max="{{ el.noise.gaussian_sigma.max|int }}" step="1" value="{{ el.noise.gaussian_sigma.default|int }}" oninput="setEfxVal('vid','noise_gaussian_sigma',this.value,'vid-noise-sigma-v')"><span class="eff-val" id="vid-noise-sigma-v">{{ el.noise.gaussian_sigma.default|int }}</span></div>
+          <div class="eff-param"><span class="eff-lbl">椒盐%</span><input type="range" class="eff-range" id="vid-noise-sp" min="0" max="{{ (el.noise.sp_prob.max*100)|round(1) }}" step="0.5" value="{{ (el.noise.sp_prob.default*100)|round(1) }}" oninput="setEfxVal('vid','noise_sp_prob',this.value/100,'vid-noise-sp-v',v=>(v*100).toFixed(1)+'%')"><span class="eff-val" id="vid-noise-sp-v">{{ (el.noise.sp_prob.default*100)|round(1) }}%</span></div>
         </div>
       </div>
       <!-- blur -->
       <div class="eff-section">
-        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="vid-blur-sw" onclick="toggleEffect('vid','blur')">模 糊</button></div>
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="vid-blur-sw" onclick="toggleEffect('vid','blur')">模 糊</button><button class="btn-reset" onclick="resetEffect('vid','blur')" title="复位默认值">↺ 复位</button></div>
         <div class="eff-params">
           <div class="eff-param"><span class="eff-lbl">类型</span><select id="vid-blur-type" onchange="setEfx('vid',{blur_type:this.value})"><option value="gaussian">高斯</option><option value="motion">运动</option></select></div>
-          <div class="eff-param"><span class="eff-lbl">强度</span><input type="range" class="eff-range" id="vid-blur-k" min="1" max="31" step="2" value="7" oninput="setEfxVal('vid','blur_kernel',+this.value,'vid-blur-k-v')"><span class="eff-val" id="vid-blur-k-v">7</span></div>
+          <div class="eff-param"><span class="eff-lbl">强度</span><input type="range" class="eff-range" id="vid-blur-k" min="{{ el.blur.kernel.min|int }}" max="{{ el.blur.kernel.max|int }}" step="2" value="{{ el.blur.kernel.default|int }}" oninput="setEfxVal('vid','blur_kernel',+this.value,'vid-blur-k-v')"><span class="eff-val" id="vid-blur-k-v">{{ el.blur.kernel.default|int }}</span></div>
+          <div class="eff-param"><span class="eff-lbl">运动角</span><input type="range" class="eff-range" id="vid-blur-ma" min="{{ el.blur.motion_angle.min|int }}" max="{{ el.blur.motion_angle.max|int }}" step="1" value="{{ el.blur.motion_angle.default|int }}" oninput="setEfxVal('vid','blur_motion_angle',+this.value,'vid-blur-ma-v',v=>v+'°')"><span class="eff-val" id="vid-blur-ma-v">{{ el.blur.motion_angle.default|int }}°</span></div>
+          <div class="eff-param"><span class="eff-lbl">运动长</span><input type="range" class="eff-range" id="vid-blur-ml" min="{{ el.blur.motion_length.min|int }}" max="{{ el.blur.motion_length.max|int }}" step="1" value="{{ el.blur.motion_length.default|int }}" oninput="setEfxVal('vid','blur_motion_length',+this.value,'vid-blur-ml-v')"><span class="eff-val" id="vid-blur-ml-v">{{ el.blur.motion_length.default|int }}</span></div>
         </div>
+      </div>
+      <!-- mosaic -->
+      <div class="eff-section">
+          <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="vid-mosaic-sw" onclick="toggleEffect('vid','mosaic')">马赛克</button><button class="btn-reset" onclick="resetEffect('vid','mosaic')" title="复位默认值">↺ 复位</button></div>
+          <div class="eff-params">
+              <div class="eff-param"><span class="eff-lbl">块大小</span><input type="range" class="eff-range" id="vid-mosaic-bs" min="{{ el.mosaic.block_size.min|int }}" max="{{ el.mosaic.block_size.max|int }}" step="1" value="{{ el.mosaic.block_size.default|int }}" oninput="setEfxVal('vid','mosaic_block_size',+this.value,'vid-mosaic-bs-v',v=>v+'px')"><span class="eff-val" id="vid-mosaic-bs-v">{{ el.mosaic.block_size.default|int }}px</span></div>
+              <div class="eff-param"><span class="eff-lbl">模糊程度</span><input type="range" class="eff-range" id="vid-mosaic-blur" min="{{ el.mosaic.blur_radius.min|int }}" max="{{ el.mosaic.blur_radius.max|int }}" step="1" value="{{ el.mosaic.blur_radius.default|int }}" oninput="setEfxVal('vid','mosaic_blur_radius',+this.value,'vid-mosaic-blur-v')"><span class="eff-val" id="vid-mosaic-blur-v">{{ el.mosaic.blur_radius.default|int }}</span></div>
+          </div>
       </div>
       <!-- occlusion -->
       <div class="eff-section">
-        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="vid-occ-sw" onclick="toggleEffect('vid','occ')">遮挡块</button></div>
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="vid-occ-sw" onclick="toggleEffect('vid','occ')">遮挡块</button><button class="btn-reset" onclick="resetEffect('vid','occ')" title="复位默认值">↺ 复位</button></div>
         <div class="eff-params">
-          <div class="eff-param"><span class="eff-lbl">数量</span><input type="range" class="eff-range" id="vid-occ-cnt" min="1" max="20" step="1" value="3" oninput="setEfxVal('vid','occlusion_count',+this.value,'vid-occ-cnt-v')"><span class="eff-val" id="vid-occ-cnt-v">3</span></div>
-          <div class="eff-param"><span class="eff-lbl">最大px</span><input type="range" class="eff-range" id="vid-occ-sz" min="10" max="200" step="5" value="80" oninput="setEfxVal('vid','occlusion_max_size',+this.value,'vid-occ-sz-v')"><span class="eff-val" id="vid-occ-sz-v">80</span></div>
-          <div class="eff-param"><span class="eff-lbl">刷新s</span><input type="range" class="eff-range" id="vid-occ-ref" min="0.5" max="10" step="0.5" value="2" oninput="setEfxVal('vid','occlusion_refresh_sec',+this.value,'vid-occ-ref-v',v=>v+'s')"><span class="eff-val" id="vid-occ-ref-v">2s</span></div>
+          <div class="eff-param"><span class="eff-lbl">数量</span><input type="range" class="eff-range" id="vid-occ-cnt" min="{{ el.occlusion.count.min|int }}" max="{{ el.occlusion.count.max|int }}" step="1" value="{{ el.occlusion.count.default|int }}" oninput="setEfxVal('vid','occlusion_count',+this.value,'vid-occ-cnt-v')"><span class="eff-val" id="vid-occ-cnt-v">{{ el.occlusion.count.default|int }}</span></div>
+          <div class="eff-param"><span class="eff-lbl">最大px</span><input type="range" class="eff-range" id="vid-occ-sz" min="{{ el.occlusion.max_size.min|int }}" max="{{ el.occlusion.max_size.max|int }}" step="5" value="{{ el.occlusion.max_size.default|int }}" oninput="setEfxVal('vid','occlusion_max_size',+this.value,'vid-occ-sz-v')"><span class="eff-val" id="vid-occ-sz-v">{{ el.occlusion.max_size.default|int }}</span></div>
+          <div class="eff-param"><span class="eff-lbl">刷新s</span><input type="range" class="eff-range" id="vid-occ-ref" min="{{ el.occlusion.refresh_sec.min }}" max="{{ el.occlusion.refresh_sec.max }}" step="0.5" value="{{ el.occlusion.refresh_sec.default }}" oninput="setEfxVal('vid','occlusion_refresh_sec',+this.value,'vid-occ-ref-v',v=>v+'s')"><span class="eff-val" id="vid-occ-ref-v">{{ el.occlusion.refresh_sec.default }}s</span></div>
           <div class="eff-param"><span class="eff-lbl">颜色</span><div class="chk-group"><label class="chk-item"><input type="checkbox" id="vid-occ-black" checked onchange="updateOccColors('vid')"> 黑</label><label class="chk-item"><input type="checkbox" id="vid-occ-white" onchange="updateOccColors('vid')"> 白</label><label class="chk-item"><input type="checkbox" id="vid-occ-gray" onchange="updateOccColors('vid')"> 灰</label></div></div>
         </div>
       </div>
-      <!-- brightness -->
+      <!-- brightness/contrast -->
       <div class="eff-section">
-        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="vid-bright-sw" onclick="toggleEffect('vid','bright')">亮 度</button></div>
-        <div class="eff-params"><div class="eff-param span2"><span class="eff-lbl">亮度值</span><input type="range" class="eff-range" id="vid-bright-v" min="-100" max="100" step="1" value="0" oninput="setEfxVal('vid','brightness_value',+this.value,'vid-bright-disp',v=>v>0?'+'+v:v)"><span class="eff-val" id="vid-bright-disp">0</span></div></div>
-      </div>
-      <!-- contrast -->
-      <div class="eff-section">
-        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="vid-cont-sw" onclick="toggleEffect('vid','cont')">对比度</button></div>
-        <div class="eff-params"><div class="eff-param span2"><span class="eff-lbl">倍率</span><input type="range" class="eff-range" id="vid-cont-v" min="0.3" max="3.0" step="0.05" value="1.0" oninput="setEfxVal('vid','contrast_value',+this.value,'vid-cont-disp',v=>parseFloat(v).toFixed(2)+'×')"><span class="eff-val" id="vid-cont-disp">1.00×</span></div></div>
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="vid-bc-sw" onclick="toggleEffect('vid','bc')">亮度/对比度</button><button class="btn-reset" onclick="resetEffect('vid','bc')" title="复位默认值">↺ 复位</button></div>
+        <div class="eff-params">
+          <div class="eff-param"><span class="eff-lbl">亮度值</span><input type="range" class="eff-range" id="vid-bright-v" min="{{ el.brightness.value.min|int }}" max="{{ el.brightness.value.max|int }}" step="1" value="{{ el.brightness.value.default|int }}" oninput="setEfxVal('vid','brightness_value',+this.value,'vid-bright-disp',v=>v>0?'+'+v:v)"><span class="eff-val" id="vid-bright-disp">{{ el.brightness.value.default|int }}</span></div>
+          <div class="eff-param"><span class="eff-lbl">对比度</span><input type="range" class="eff-range" id="vid-cont-v" min="{{ el.contrast.value.min }}" max="{{ el.contrast.value.max }}" step="0.05" value="{{ el.contrast.value.default }}" oninput="setEfxVal('vid','contrast_value',+this.value,'vid-cont-disp',v=>parseFloat(v).toFixed(2)+'×')"><span class="eff-val" id="vid-cont-disp">{{ el.contrast.value.default }}×</span></div>
+        </div>
       </div>
       <!-- color -->
       <div class="eff-section">
-        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="vid-color-sw" onclick="toggleEffect('vid','color')">颜 色</button></div>
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="vid-color-sw" onclick="toggleEffect('vid','color')">颜 色</button><button class="btn-reset" onclick="resetEffect('vid','color')" title="复位默认值">↺ 复位</button></div>
         <div class="eff-params">
-          <div class="eff-param"><span class="eff-lbl">色调</span><input type="range" class="eff-range" id="vid-hue" min="-180" max="180" step="1" value="0" oninput="setEfxVal('vid','color_hue_shift',+this.value,'vid-hue-v',v=>v+'°')"><span class="eff-val" id="vid-hue-v">0°</span></div>
-          <div class="eff-param"><span class="eff-lbl">饱和</span><input type="range" class="eff-range" id="vid-sat" min="0" max="2" step="0.05" value="1" oninput="setEfxVal('vid','color_saturation',+this.value,'vid-sat-v',v=>parseFloat(v).toFixed(2))"><span class="eff-val" id="vid-sat-v">1.00</span></div>
+          <div class="eff-param"><span class="eff-lbl">色调</span><input type="range" class="eff-range" id="vid-hue" min="{{ el.color.hue_shift.min|int }}" max="{{ el.color.hue_shift.max|int }}" step="1" value="{{ el.color.hue_shift.default|int }}" oninput="setEfxVal('vid','color_hue_shift',+this.value,'vid-hue-v',v=>v+'°')"><span class="eff-val" id="vid-hue-v">{{ el.color.hue_shift.default|int }}°</span></div>
+          <div class="eff-param"><span class="eff-lbl">饱和</span><input type="range" class="eff-range" id="vid-sat" min="{{ el.color.saturation.min }}" max="{{ el.color.saturation.max }}" step="0.05" value="{{ el.color.saturation.default }}" oninput="setEfxVal('vid','color_saturation',+this.value,'vid-sat-v',v=>parseFloat(v).toFixed(2))"><span class="eff-val" id="vid-sat-v">{{ el.color.saturation.default }}</span></div>
+          <div class="eff-param"><span class="eff-lbl">色温</span><input type="range" class="eff-range" id="vid-temp" min="{{ el.color.temperature.min|int }}" max="{{ el.color.temperature.max|int }}" step="1" value="{{ el.color.temperature.default|int }}" oninput="setEfxVal('vid','color_temperature',+this.value,'vid-temp-v',v=>(v>0?'+':'')+v+'℃')"><span class="eff-val" id="vid-temp-v">{{ el.color.temperature.default|int }}℃</span></div>
+          <div class="eff-param"><span class="eff-lbl">明度</span><input type="range" class="eff-range bright-range" id="vid-color-bright" min="0" max="100" step="1" value="{{ (el.color.brightness_bias.default*100)|int }}" oninput="setEfxVal('vid','color_brightness_bias',this.value/100,'vid-color-bright-v',v=>(v*100).toFixed(0)+'%')"><span class="eff-val" id="vid-color-bright-v">{{ (el.color.brightness_bias.default*100)|int }}%</span></div>
+          <div class="eff-param span2"><button class="btn-toggle btn-sm eff-sw-btn" id="vid-invert-btn" onclick="toggleColorInvert('vid')">反相: 关</button></div>
+        </div>
+      </div
+      <!-- overlay -->
+      <div class="eff-section">
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="vid-overlay-sw" onclick="toggleEffect('vid','overlay')">纯色蒙版</button><button class="btn-reset" onclick="resetEffect('vid','overlay')" title="复位默认值">↺ 复位</button></div>
+        <div class="eff-params">
+          <div class="eff-param span2" style="align-items:center;gap:6px"><span class="eff-lbl">颜色</span><span class="overlay-swatch" id="vid-overlay-swatch" style="background:#000"></span><span class="overlay-info"><span id="vid-overlay-name">黑色</span>&nbsp;<code id="vid-overlay-hex">#000000</code></span><div class="overlay-presets" style="margin-left:auto"><button class="preset-btn p-black" onclick="setOverlayPreset('vid',0,0,0,0,0)">全黑蒙版</button><button class="preset-btn p-white" onclick="setOverlayPreset('vid',255,255,255,100,0)">全白蒙版</button><button class="preset-btn p-gray" onclick="setOverlayPreset('vid',128,128,128,50,0)">全灰蒙版</button></div></div>
+          <div class="eff-param span2"><span class="eff-lbl">色相</span><input type="range" class="eff-range hue-range" id="vid-overlay-hue" min="0" max="360" step="1" value="0" oninput="setOverlayHue('vid',this.value)"></div>
+          <div class="eff-param"><span class="eff-lbl">明度</span><input type="range" class="eff-range bright-range" id="vid-overlay-bright" min="0" max="100" step="1" value="50" oninput="setOverlayBright('vid',this.value)"><span class="eff-val" id="vid-overlay-bright-v">50%</span></div>
+          <div class="eff-param"><span class="eff-lbl">透明度</span><input type="range" class="eff-range" id="vid-overlay-opacity" min="{{ el.overlay.opacity.min }}" max="{{ el.overlay.opacity.max }}" step="0.01" value="{{ el.overlay.opacity.default }}" oninput="setEfxVal('vid','overlay_opacity',+this.value,'vid-overlay-opacity-v',v=>(v*100).toFixed(0)+'%')"><span class="eff-val" id="vid-overlay-opacity-v">{{ (el.overlay.opacity.default*100)|int }}%</span></div>
         </div>
       </div>
     </div><!-- /effect-panel -->
@@ -577,50 +728,70 @@ input[type="range"].eff-range { flex: 1; min-width: 50px; accent-color: #6366f1;
         >干扰预览: {{ '已禁用' if not proxy_web_preview else '关' }}</button>
         <button class="btn-toggle" id="pxy-efx-all" onclick="toggleEffectAll('pxy')">干扰效果: 关</button>
         <button class="btn-toggle on-amber" id="pxy-efx-rand" onclick="triggerRandom('pxy')">生成随机干扰</button>
-        <button class="btn-toggle" id="pxy-black" onclick="toggleBlack('pxy')">画面全黑蒙版</button>
       </div>
       <!-- noise -->
       <div class="eff-section">
-        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="pxy-noise-sw" onclick="toggleEffect('pxy','noise')">噪 点</button></div>
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="pxy-noise-sw" onclick="toggleEffect('pxy','noise')">噪 点</button><button class="btn-reset" onclick="resetEffect('pxy','noise')" title="复位默认值">↺ 复位</button></div>
         <div class="eff-params">
-          <div class="eff-param"><span class="eff-lbl">高斯σ</span><input type="range" class="eff-range" id="pxy-noise-sigma" min="0" max="80" step="1" value="20" oninput="setEfxVal('pxy','noise_gaussian_sigma',this.value,'pxy-noise-sigma-v')"><span class="eff-val" id="pxy-noise-sigma-v">20</span></div>
-          <div class="eff-param"><span class="eff-lbl">椒盐%</span><input type="range" class="eff-range" id="pxy-noise-sp" min="0" max="15" step="0.5" value="3" oninput="setEfxVal('pxy','noise_sp_prob',this.value/100,'pxy-noise-sp-v',v=>(v*100).toFixed(1)+'%')"><span class="eff-val" id="pxy-noise-sp-v">3.0%</span></div>
+          <div class="eff-param"><span class="eff-lbl">高斯σ</span><input type="range" class="eff-range" id="pxy-noise-sigma" min="{{ el.noise.gaussian_sigma.min|int }}" max="{{ el.noise.gaussian_sigma.max|int }}" step="1" value="{{ el.noise.gaussian_sigma.default|int }}" oninput="setEfxVal('pxy','noise_gaussian_sigma',this.value,'pxy-noise-sigma-v')"><span class="eff-val" id="pxy-noise-sigma-v">{{ el.noise.gaussian_sigma.default|int }}</span></div>
+          <div class="eff-param"><span class="eff-lbl">椒盐%</span><input type="range" class="eff-range" id="pxy-noise-sp" min="0" max="{{ (el.noise.sp_prob.max*100)|round(1) }}" step="0.5" value="{{ (el.noise.sp_prob.default*100)|round(1) }}" oninput="setEfxVal('pxy','noise_sp_prob',this.value/100,'pxy-noise-sp-v',v=>(v*100).toFixed(1)+'%')"><span class="eff-val" id="pxy-noise-sp-v">{{ (el.noise.sp_prob.default*100)|round(1) }}%</span></div>
         </div>
       </div>
       <!-- blur -->
       <div class="eff-section">
-        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="pxy-blur-sw" onclick="toggleEffect('pxy','blur')">模 糊</button></div>
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="pxy-blur-sw" onclick="toggleEffect('pxy','blur')">模 糊</button><button class="btn-reset" onclick="resetEffect('pxy','blur')" title="复位默认值">↺ 复位</button></div>
         <div class="eff-params">
           <div class="eff-param"><span class="eff-lbl">类型</span><select id="pxy-blur-type" onchange="setEfx('pxy',{blur_type:this.value})"><option value="gaussian">高斯</option><option value="motion">运动</option></select></div>
-          <div class="eff-param"><span class="eff-lbl">强度</span><input type="range" class="eff-range" id="pxy-blur-k" min="1" max="31" step="2" value="7" oninput="setEfxVal('pxy','blur_kernel',+this.value,'pxy-blur-k-v')"><span class="eff-val" id="pxy-blur-k-v">7</span></div>
+          <div class="eff-param"><span class="eff-lbl">强度</span><input type="range" class="eff-range" id="pxy-blur-k" min="{{ el.blur.kernel.min|int }}" max="{{ el.blur.kernel.max|int }}" step="2" value="{{ el.blur.kernel.default|int }}" oninput="setEfxVal('pxy','blur_kernel',+this.value,'pxy-blur-k-v')"><span class="eff-val" id="pxy-blur-k-v">{{ el.blur.kernel.default|int }}</span></div>
+          <div class="eff-param"><span class="eff-lbl">运动角</span><input type="range" class="eff-range" id="pxy-blur-ma" min="{{ el.blur.motion_angle.min|int }}" max="{{ el.blur.motion_angle.max|int }}" step="1" value="{{ el.blur.motion_angle.default|int }}" oninput="setEfxVal('pxy','blur_motion_angle',+this.value,'pxy-blur-ma-v',v=>v+'°')"><span class="eff-val" id="pxy-blur-ma-v">{{ el.blur.motion_angle.default|int }}°</span></div>
+          <div class="eff-param"><span class="eff-lbl">运动长</span><input type="range" class="eff-range" id="pxy-blur-ml" min="{{ el.blur.motion_length.min|int }}" max="{{ el.blur.motion_length.max|int }}" step="1" value="{{ el.blur.motion_length.default|int }}" oninput="setEfxVal('pxy','blur_motion_length',+this.value,'pxy-blur-ml-v')"><span class="eff-val" id="pxy-blur-ml-v">{{ el.blur.motion_length.default|int }}</span></div>
         </div>
+      </div>
+      <!-- mosaic -->
+      <div class="eff-section">
+          <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="pxy-mosaic-sw" onclick="toggleEffect('pxy','mosaic')">马赛克</button><button class="btn-reset" onclick="resetEffect('pxy','mosaic')" title="复位默认值">↺ 复位</button></div>
+          <div class="eff-params">
+              <div class="eff-param"><span class="eff-lbl">块大小</span><input type="range" class="eff-range" id="pxy-mosaic-bs" min="{{ el.mosaic.block_size.min|int }}" max="{{ el.mosaic.block_size.max|int }}" step="1" value="{{ el.mosaic.block_size.default|int }}" oninput="setEfxVal('pxy','mosaic_block_size',+this.value,'pxy-mosaic-bs-v',v=>v+'px')"><span class="eff-val" id="pxy-mosaic-bs-v">{{ el.mosaic.block_size.default|int }}px</span></div>
+              <div class="eff-param"><span class="eff-lbl">模糊程度</span><input type="range" class="eff-range" id="pxy-mosaic-blur" min="{{ el.mosaic.blur_radius.min|int }}" max="{{ el.mosaic.blur_radius.max|int }}" step="1" value="{{ el.mosaic.blur_radius.default|int }}" oninput="setEfxVal('pxy','mosaic_blur_radius',+this.value,'pxy-mosaic-blur-v')"><span class="eff-val" id="pxy-mosaic-blur-v">{{ el.mosaic.blur_radius.default|int }}</span></div>
+          </div>
       </div>
       <!-- occlusion -->
       <div class="eff-section">
-        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="pxy-occ-sw" onclick="toggleEffect('pxy','occ')">遮挡块</button></div>
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="pxy-occ-sw" onclick="toggleEffect('pxy','occ')">遮挡块</button><button class="btn-reset" onclick="resetEffect('pxy','occ')" title="复位默认值">↺ 复位</button></div>
         <div class="eff-params">
-          <div class="eff-param"><span class="eff-lbl">数量</span><input type="range" class="eff-range" id="pxy-occ-cnt" min="1" max="20" step="1" value="3" oninput="setEfxVal('pxy','occlusion_count',+this.value,'pxy-occ-cnt-v')"><span class="eff-val" id="pxy-occ-cnt-v">3</span></div>
-          <div class="eff-param"><span class="eff-lbl">最大px</span><input type="range" class="eff-range" id="pxy-occ-sz" min="10" max="200" step="5" value="80" oninput="setEfxVal('pxy','occlusion_max_size',+this.value,'pxy-occ-sz-v')"><span class="eff-val" id="pxy-occ-sz-v">80</span></div>
-          <div class="eff-param"><span class="eff-lbl">刷新s</span><input type="range" class="eff-range" id="pxy-occ-ref" min="0.5" max="10" step="0.5" value="2" oninput="setEfxVal('pxy','occlusion_refresh_sec',+this.value,'pxy-occ-ref-v',v=>v+'s')"><span class="eff-val" id="pxy-occ-ref-v">2s</span></div>
+          <div class="eff-param"><span class="eff-lbl">数量</span><input type="range" class="eff-range" id="pxy-occ-cnt" min="{{ el.occlusion.count.min|int }}" max="{{ el.occlusion.count.max|int }}" step="1" value="{{ el.occlusion.count.default|int }}" oninput="setEfxVal('pxy','occlusion_count',+this.value,'pxy-occ-cnt-v')"><span class="eff-val" id="pxy-occ-cnt-v">{{ el.occlusion.count.default|int }}</span></div>
+          <div class="eff-param"><span class="eff-lbl">最大px</span><input type="range" class="eff-range" id="pxy-occ-sz" min="{{ el.occlusion.max_size.min|int }}" max="{{ el.occlusion.max_size.max|int }}" step="5" value="{{ el.occlusion.max_size.default|int }}" oninput="setEfxVal('pxy','occlusion_max_size',+this.value,'pxy-occ-sz-v')"><span class="eff-val" id="pxy-occ-sz-v">{{ el.occlusion.max_size.default|int }}</span></div>
+          <div class="eff-param"><span class="eff-lbl">刷新s</span><input type="range" class="eff-range" id="pxy-occ-ref" min="{{ el.occlusion.refresh_sec.min }}" max="{{ el.occlusion.refresh_sec.max }}" step="0.5" value="{{ el.occlusion.refresh_sec.default }}" oninput="setEfxVal('pxy','occlusion_refresh_sec',+this.value,'pxy-occ-ref-v',v=>v+'s')"><span class="eff-val" id="pxy-occ-ref-v">{{ el.occlusion.refresh_sec.default }}s</span></div>
           <div class="eff-param"><span class="eff-lbl">颜色</span><div class="chk-group"><label class="chk-item"><input type="checkbox" id="pxy-occ-black" checked onchange="updateOccColors('pxy')"> 黑</label><label class="chk-item"><input type="checkbox" id="pxy-occ-white" onchange="updateOccColors('pxy')"> 白</label><label class="chk-item"><input type="checkbox" id="pxy-occ-gray" onchange="updateOccColors('pxy')"> 灰</label></div></div>
         </div>
       </div>
-      <!-- brightness -->
+      <!-- brightness/contrast -->
       <div class="eff-section">
-        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="pxy-bright-sw" onclick="toggleEffect('pxy','bright')">亮 度</button></div>
-        <div class="eff-params"><div class="eff-param span2"><span class="eff-lbl">亮度值</span><input type="range" class="eff-range" id="pxy-bright-v" min="-100" max="100" step="1" value="0" oninput="setEfxVal('pxy','brightness_value',+this.value,'pxy-bright-disp',v=>v>0?'+'+v:v)"><span class="eff-val" id="pxy-bright-disp">0</span></div></div>
-      </div>
-      <!-- contrast -->
-      <div class="eff-section">
-        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="pxy-cont-sw" onclick="toggleEffect('pxy','cont')">对比度</button></div>
-        <div class="eff-params"><div class="eff-param span2"><span class="eff-lbl">倍率</span><input type="range" class="eff-range" id="pxy-cont-v" min="0.3" max="3.0" step="0.05" value="1.0" oninput="setEfxVal('pxy','contrast_value',+this.value,'pxy-cont-disp',v=>parseFloat(v).toFixed(2)+'×')"><span class="eff-val" id="pxy-cont-disp">1.00×</span></div></div>
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="pxy-bc-sw" onclick="toggleEffect('pxy','bc')">亮度/对比度</button><button class="btn-reset" onclick="resetEffect('pxy','bc')" title="复位默认值">↺ 复位</button></div>
+        <div class="eff-params">
+          <div class="eff-param"><span class="eff-lbl">亮度值</span><input type="range" class="eff-range" id="pxy-bright-v" min="{{ el.brightness.value.min|int }}" max="{{ el.brightness.value.max|int }}" step="1" value="{{ el.brightness.value.default|int }}" oninput="setEfxVal('pxy','brightness_value',+this.value,'pxy-bright-disp',v=>v>0?'+'+v:v)"><span class="eff-val" id="pxy-bright-disp">{{ el.brightness.value.default|int }}</span></div>
+          <div class="eff-param"><span class="eff-lbl">对比度</span><input type="range" class="eff-range" id="pxy-cont-v" min="{{ el.contrast.value.min }}" max="{{ el.contrast.value.max }}" step="0.05" value="{{ el.contrast.value.default }}" oninput="setEfxVal('pxy','contrast_value',+this.value,'pxy-cont-disp',v=>parseFloat(v).toFixed(2)+'×')"><span class="eff-val" id="pxy-cont-disp">{{ el.contrast.value.default }}×</span></div>
+        </div>
       </div>
       <!-- color -->
       <div class="eff-section">
-        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="pxy-color-sw" onclick="toggleEffect('pxy','color')">颜 色</button></div>
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="pxy-color-sw" onclick="toggleEffect('pxy','color')">颜 色</button><button class="btn-reset" onclick="resetEffect('pxy','color')" title="复位默认值">↺ 复位</button></div>
         <div class="eff-params">
-          <div class="eff-param"><span class="eff-lbl">色调</span><input type="range" class="eff-range" id="pxy-hue" min="-180" max="180" step="1" value="0" oninput="setEfxVal('pxy','color_hue_shift',+this.value,'pxy-hue-v',v=>v+'°')"><span class="eff-val" id="pxy-hue-v">0°</span></div>
-          <div class="eff-param"><span class="eff-lbl">饱和</span><input type="range" class="eff-range" id="pxy-sat" min="0" max="2" step="0.05" value="1" oninput="setEfxVal('pxy','color_saturation',+this.value,'pxy-sat-v',v=>parseFloat(v).toFixed(2))"><span class="eff-val" id="pxy-sat-v">1.00</span></div>
+          <div class="eff-param"><span class="eff-lbl">色调</span><input type="range" class="eff-range" id="pxy-hue" min="{{ el.color.hue_shift.min|int }}" max="{{ el.color.hue_shift.max|int }}" step="1" value="{{ el.color.hue_shift.default|int }}" oninput="setEfxVal('pxy','color_hue_shift',+this.value,'pxy-hue-v',v=>v+'°')"><span class="eff-val" id="pxy-hue-v">{{ el.color.hue_shift.default|int }}°</span></div>
+          <div class="eff-param"><span class="eff-lbl">饱和</span><input type="range" class="eff-range" id="pxy-sat" min="{{ el.color.saturation.min }}" max="{{ el.color.saturation.max }}" step="0.05" value="{{ el.color.saturation.default }}" oninput="setEfxVal('pxy','color_saturation',+this.value,'pxy-sat-v',v=>parseFloat(v).toFixed(2))"><span class="eff-val" id="pxy-sat-v">{{ el.color.saturation.default }}</span></div>
+          <div class="eff-param"><span class="eff-lbl">色温</span><input type="range" class="eff-range" id="pxy-temp" min="{{ el.color.temperature.min|int }}" max="{{ el.color.temperature.max|int }}" step="1" value="{{ el.color.temperature.default|int }}" oninput="setEfxVal('pxy','color_temperature',+this.value,'pxy-temp-v',v=>(v>0?'+':'')+v+'℃')"><span class="eff-val" id="pxy-temp-v">{{ el.color.temperature.default|int }}℃</span></div>
+          <div class="eff-param"><span class="eff-lbl">明度</span><input type="range" class="eff-range bright-range" id="pxy-color-bright" min="0" max="100" step="1" value="{{ (el.color.brightness_bias.default*100)|int }}" oninput="setEfxVal('pxy','color_brightness_bias',this.value/100,'pxy-color-bright-v',v=>(v*100).toFixed(0)+'%')"><span class="eff-val" id="pxy-color-bright-v">{{ (el.color.brightness_bias.default*100)|int }}%</span></div>
+          <div class="eff-param span2"><button class="btn-toggle btn-sm eff-sw-btn" id="pxy-invert-btn" onclick="toggleColorInvert('pxy')">反相: 关</button></div>
+        </div>
+      </div>
+      <!-- overlay -->
+      <div class="eff-section">
+        <div class="eff-hdr"><button class="btn-toggle btn-sm eff-sw-btn" id="pxy-overlay-sw" onclick="toggleEffect('pxy','overlay')">纯色蒙版</button><button class="btn-reset" onclick="resetEffect('pxy','overlay')" title="复位默认值">↺ 复位</button></div>
+        <div class="eff-params">
+          <div class="eff-param span2" style="align-items:center;gap:6px"><span class="eff-lbl">颜色</span><span class="overlay-swatch" id="pxy-overlay-swatch" style="background:#000"></span><span class="overlay-info"><span id="pxy-overlay-name">黑色</span>&nbsp;<code id="pxy-overlay-hex">#000000</code></span><div class="overlay-presets" style="margin-left:auto"><button class="preset-btn p-black" onclick="setOverlayPreset('pxy',0,0,0,0,0)">全黑蒙版</button><button class="preset-btn p-white" onclick="setOverlayPreset('pxy',255,255,255,100,0)">全白蒙版</button><button class="preset-btn p-gray" onclick="setOverlayPreset('pxy',128,128,128,50,0)">全灰蒙版</button></div></div>
+          <div class="eff-param span2"><span class="eff-lbl">色相</span><input type="range" class="eff-range hue-range" id="pxy-overlay-hue" min="0" max="360" step="1" value="0" oninput="setOverlayHue('pxy',this.value)"></div>
+          <div class="eff-param"><span class="eff-lbl">明度</span><input type="range" class="eff-range bright-range" id="pxy-overlay-bright" min="0" max="100" step="1" value="50" oninput="setOverlayBright('pxy',this.value)"><span class="eff-val" id="pxy-overlay-bright-v">50%</span></div>
+          <div class="eff-param"><span class="eff-lbl">透明度</span><input type="range" class="eff-range" id="pxy-overlay-opacity" min="{{ el.overlay.opacity.min }}" max="{{ el.overlay.opacity.max }}" step="0.01" value="{{ el.overlay.opacity.default }}" oninput="setEfxVal('pxy','overlay_opacity',+this.value,'pxy-overlay-opacity-v',v=>(v*100).toFixed(0)+'%')"><span class="eff-val" id="pxy-overlay-opacity-v">{{ (el.overlay.opacity.default*100)|int }}%</span></div>
         </div>
       </div>
     </div><!-- /effect-panel -->
@@ -653,6 +824,193 @@ const _WEB_PREVIEW = {
 let _totalSec = 0, _seekDragging = false, _isPlaying = false;
 let _webcamAvail = document.querySelector('meta[name="webcam-available"]').content === 'true';
 let _randomTarget = null;
+
+// ─── Effect defaults (from server config) ────────────────────────────────────
+const EFFECT_DEFAULTS = {
+  noise:    { gaussian_sigma: {{ el.noise.gaussian_sigma.default }}, sp_prob: {{ el.noise.sp_prob.default }} },
+  blur:     { kernel: {{ el.blur.kernel.default }}, motion_angle: {{ el.blur.motion_angle.default }}, motion_length: {{ el.blur.motion_length.default }} },
+  occ:      { count: {{ el.occlusion.count.default }}, max_size: {{ el.occlusion.max_size.default }}, refresh_sec: {{ el.occlusion.refresh_sec.default }} },
+  bc:       { bright: {{ el.brightness.value.default }}, cont: {{ el.contrast.value.default }} },
+  color:    { hue_shift: {{ el.color.hue_shift.default }}, saturation: {{ el.color.saturation.default }}, temperature: {{ el.color.temperature.default }}, brightness_bias: {{ el.color.brightness_bias.default }} },
+  mosaic:   { block_size: {{ el.mosaic.block_size.default }}, blur_radius: {{ el.mosaic.blur_radius.default }} },
+  overlay:  { opacity: {{ el.overlay.opacity.default }} },
+};
+
+// ─── Help panel ───────────────────────────────────────────────────────────────
+function toggleHelp() {
+  document.getElementById('help-panel').classList.toggle('show');
+}
+document.addEventListener('click', e => {
+  const panel = document.getElementById('help-panel');
+  if (!panel) return;
+  if (!panel.contains(e.target) && !e.target.classList.contains('help-btn')) {
+    panel.classList.remove('show');
+  }
+});
+
+// ─── Overlay color helpers ────────────────────────────────────────────────────
+function hueToRgb(hue) {
+  hue = ((hue % 360) + 360) % 360;
+  const h = hue / 60, x = 1 - Math.abs(h % 2 - 1);
+  let r,g,b;
+  if(h<1){r=1;g=x;b=0;}else if(h<2){r=x;g=1;b=0;}else if(h<3){r=0;g=1;b=x;}
+  else if(h<4){r=0;g=x;b=1;}else if(h<5){r=x;g=0;b=1;}else{r=1;g=0;b=x;}
+  return {r:Math.round(r*255), g:Math.round(g*255), b:Math.round(b*255)};
+}
+const HUE_NAMES = [[0,'红色'],[20,'橙红'],[30,'橙色'],[50,'橙黄'],[60,'黄色'],[80,'黄绿'],
+  [120,'绿色'],[150,'青绿'],[180,'青色'],[210,'天蓝'],[240,'蓝色'],[270,'蓝紫'],
+  [300,'紫色'],[330,'玫红'],[350,'玫粉']];
+function getHueName(hue) {
+  hue = ((hue%360)+360)%360;
+  let best=HUE_NAMES[0], md=360;
+  for(const [h,n] of HUE_NAMES){const d=Math.min(Math.abs(hue-h),360-Math.abs(hue-h));if(d<md){md=d;best=[h,n];}}
+  return best[1];
+}
+function rgbToHex(r,g,b){return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');}
+
+// 明度混合：bright 0-100，0=全黑，50=原色，100=全白
+function applyBrightness(r, g, b, bright) {
+  if(bright <= 50) {
+    const t = bright / 50;
+    return {r: Math.round(r*t), g: Math.round(g*t), b: Math.round(b*t)};
+  } else {
+    const t = (bright - 50) / 50;
+    return {r: Math.round(r+(255-r)*t), g: Math.round(g+(255-g)*t), b: Math.round(b+(255-b)*t)};
+  }
+}
+
+// 更新蒙版明度滑条渐变：黑→当前色相纯色→白
+function updateBrightnessGradient(stream, hue) {
+  const {r,g,b} = hueToRgb(+hue);
+  const sl = document.getElementById(stream+'-overlay-bright');
+  if(sl) sl.style.setProperty('background',
+    `linear-gradient(to right, #000000, ${rgbToHex(r,g,b)}, #ffffff)`, 'important');
+}
+
+function updateOverlayDisplay(stream, r, g, b) {
+  const sw = document.getElementById(stream+'-overlay-swatch');
+  if(sw) sw.style.background = rgbToHex(r,g,b);
+  const hx = document.getElementById(stream+'-overlay-hex');
+  if(hx) hx.textContent = rgbToHex(r,g,b).toUpperCase();
+  const max=Math.max(r,g,b), min=Math.min(r,g,b);
+  const sat = max===0 ? 0 : (max-min)/max;
+  let name;
+  if(sat < 0.15){ const v=max/255; name = v<0.15?'黑色':v>0.85?'白色':'灰色'; }
+  else {
+    const rc=(max-r)/(max-min),gc=(max-g)/(max-min),bc=(max-b)/(max-min);
+    let h; if(r===max)h=bc-gc; else if(g===max)h=2+rc-bc; else h=4+gc-rc;
+    name = getHueName(((h*60)+360)%360);
+  }
+  const nm = document.getElementById(stream+'-overlay-name'); if(nm) nm.textContent=name;
+}
+
+function setOverlayHue(stream, hue) {
+  const bs = document.getElementById(stream+'-overlay-bright');
+  const bright = bs ? +bs.value : 50;
+  const {r:pr,g:pg,b:pb} = hueToRgb(+hue);
+  const {r,g,b} = applyBrightness(pr,pg,pb,bright);
+  updateOverlayDisplay(stream,r,g,b);
+  updateBrightnessGradient(stream,hue);
+  scheduleEfx(stream, {overlay_r:r, overlay_g:g, overlay_b:b});
+}
+// 明度滑条拖动处理函数
+function setOverlayBright(stream, bright) {
+  const hsl = document.getElementById(stream+'-overlay-hue');
+  const hue = hsl ? +hsl.value : 0;
+  const {r:pr,g:pg,b:pb} = hueToRgb(hue);
+  const {r,g,b} = applyBrightness(pr,pg,pb,+bright);
+  updateOverlayDisplay(stream,r,g,b);
+  const bv = document.getElementById(stream+'-overlay-bright-v');
+  if(bv) bv.textContent = Math.round(bright)+'%';
+  scheduleEfx(stream, {overlay_r:r, overlay_g:g, overlay_b:b});
+}
+// 预设按鈕：直接设置 RGB，并同步滑条位置和透明度
+function setOverlayPreset(stream, r, g, b, brightPct, hueDeg) {
+  const sl = document.getElementById(stream+'-overlay-hue');
+  if(sl && hueDeg >= 0) sl.value = hueDeg;
+  const bs = document.getElementById(stream+'-overlay-bright');
+  const bv = document.getElementById(stream+'-overlay-bright-v');
+  if(bs) bs.value = brightPct;
+  if(bv) bv.textContent = brightPct+'%';
+  const op = document.getElementById(stream+'-overlay-opacity');
+  const ov = document.getElementById(stream+'-overlay-opacity-v');
+  if(op) op.value = 1.0;
+  if(ov) ov.textContent = '100%';
+  const actualHue = sl ? +sl.value : 0;
+  updateBrightnessGradient(stream, actualHue);
+  updateOverlayDisplay(stream,r,g,b);
+  scheduleEfx(stream, {overlay_r:r, overlay_g:g, overlay_b:b, overlay_opacity:1.0});
+}
+
+// ─── 摄像头镜像反转开关 ────────────────────────────────────────────
+function toggleMirror() {
+  const btn = document.getElementById('wcam-mirror-btn');
+  if(!btn) return;
+  const mirrorMode = btn.classList.contains('on');
+  const newMirrorMode = !mirrorMode;
+  btn.classList.toggle('on', newMirrorMode);
+  btn.textContent = newMirrorMode ? '镜像反转: 开' : '镜像反转: 关';
+  // flip_h=true 表示纠正镜像（正常），flip_h=false 保留镜像方向
+  scheduleEfx(WCAM, {flip_h: !newMirrorMode});
+}
+
+// ─── 颜色反相开关 ────────────────────────────────────────────
+function toggleColorInvert(stream) {
+  const btn = document.getElementById(stream+'-invert-btn');
+  if(!btn) return;
+  const isOn = btn.classList.contains('on');
+  btn.classList.toggle('on', !isOn);
+  btn.textContent = isOn ? '反相: 关' : '反相: 开';
+  scheduleEfx(stream, {color_invert: !isOn});
+}
+
+// ─── Reset effect section to defaults ────────────────────────────────────────
+function _setSliderDisp(sliderId, val, dispId, fmt) {
+  const sl=document.getElementById(sliderId); if(sl) sl.value=val;
+  const dp=document.getElementById(dispId); if(dp) dp.textContent=fmt?fmt(val):val;
+}
+function resetEffect(stream, group) {
+  const d = EFFECT_DEFAULTS[group]; if(!d) return;
+  const patch = {};
+  if(group==='noise') {
+    _setSliderDisp(stream+'-noise-sigma', d.gaussian_sigma, stream+'-noise-sigma-v', v=>Math.round(v));
+    _setSliderDisp(stream+'-noise-sp', +(d.sp_prob*100).toFixed(1), stream+'-noise-sp-v', v=>parseFloat(v).toFixed(1)+'%');
+    Object.assign(patch,{noise_gaussian_sigma:d.gaussian_sigma, noise_sp_prob:d.sp_prob});
+  } else if(group==='blur') {
+    const bt=document.getElementById(stream+'-blur-type'); if(bt) bt.value='gaussian';
+    _setSliderDisp(stream+'-blur-k',  d.kernel,       stream+'-blur-k-v',  v=>v);
+    _setSliderDisp(stream+'-blur-ma', d.motion_angle, stream+'-blur-ma-v', v=>v+'°');
+    _setSliderDisp(stream+'-blur-ml', d.motion_length,stream+'-blur-ml-v', v=>v);
+    Object.assign(patch,{blur_type:'gaussian',blur_kernel:d.kernel,blur_motion_angle:d.motion_angle,blur_motion_length:d.motion_length});
+  } else if(group==='occ') {
+    _setSliderDisp(stream+'-occ-cnt', d.count,       stream+'-occ-cnt-v', v=>v);
+    _setSliderDisp(stream+'-occ-sz',  d.max_size,    stream+'-occ-sz-v',  v=>v);
+    _setSliderDisp(stream+'-occ-ref', d.refresh_sec, stream+'-occ-ref-v', v=>v+'s');
+    ['black','white','gray'].forEach(c=>{ const el=document.getElementById(stream+'-occ-'+c); if(el) el.checked=(c==='black'); });
+    Object.assign(patch,{occlusion_count:d.count,occlusion_max_size:d.max_size,occlusion_refresh_sec:d.refresh_sec,occlusion_colors:['black']});
+  } else if(group==='bc') {
+    _setSliderDisp(stream+'-bright-v', d.bright, stream+'-bright-disp', v=>v>0?'+'+v:v);
+    _setSliderDisp(stream+'-cont-v',   d.cont,   stream+'-cont-disp',   v=>parseFloat(v).toFixed(2)+'×');
+    Object.assign(patch, {brightness_value: d.bright, contrast_value: d.cont});
+  } else if(group==='color') {
+    _setSliderDisp(stream+'-hue',  d.hue_shift,   stream+'-hue-v',  v=>v+'°');
+    _setSliderDisp(stream+'-sat',  d.saturation,  stream+'-sat-v',  v=>parseFloat(v).toFixed(2));
+    _setSliderDisp(stream+'-temp', d.temperature, stream+'-temp-v', v=>(v>0?'+':'')+v+'℃');
+    _setSliderDisp(stream+'-color-bright', Math.round(d.brightness_bias*100), stream+'-color-bright-v', v=>v+'%');
+    const ib=document.getElementById(stream+'-invert-btn'); if(ib){ib.classList.remove('on');ib.textContent='反相: 关';}
+    Object.assign(patch,{color_hue_shift:d.hue_shift,color_saturation:d.saturation,color_temperature:d.temperature,color_brightness_bias:d.brightness_bias,color_invert:false});
+  } else if(group==='mosaic') {
+    _setSliderDisp(stream+'-mosaic-bs',   d.block_size,  stream+'-mosaic-bs-v',   v=>v+'px');
+    _setSliderDisp(stream+'-mosaic-blur', d.blur_radius, stream+'-mosaic-blur-v', v=>v);
+    Object.assign(patch, {mosaic_block_size: d.block_size, mosaic_blur_radius: d.blur_radius});
+  } else if(group==='overlay') {
+    _setSliderDisp(stream+'-overlay-opacity', d.opacity, stream+'-overlay-opacity-v', v=>(v*100).toFixed(0)+'%');
+    const bs=document.getElementById(stream+'-overlay-bright'); if(bs) bs.value=50;
+    const bv=document.getElementById(stream+'-overlay-bright-v'); if(bv) bv.textContent='50%';
+    setOverlayPreset(stream,0,0,0,0,0); return;
+  }
+  scheduleEfx(stream, patch);
+}
 
 // ─── Collapse / expand card ────────────────────────────────────────────────────
 function toggleCollapse(btn) {
@@ -813,9 +1171,10 @@ function updateLoopButtons(mode) {
 function updateVideoUI(d) {
   const badge = document.getElementById('vid-badge');
   if (!badge) return;
-  if (!d.streaming)  { badge.className='badge badge-gray';   badge.textContent='推流已停'; }
-  else if (d.playing){ badge.className='badge badge-green';  badge.textContent='推流中'; }
-  else               { badge.className='badge badge-yellow'; badge.textContent='已暂停'; }
+  if (!d.streaming)            { badge.className='badge badge-gray';   badge.textContent='推流已停'; }
+  else if (d.playing)           { badge.className='badge badge-green';  badge.textContent='推流中'; }
+  else if (d.frame_frozen)      { badge.className='badge badge-yellow'; badge.textContent='画面冻结'; }
+  else                          { badge.className='badge badge-yellow'; badge.textContent='已暂停'; }
 
   _isPlaying = d.playing || false;
   const ppBtn = document.getElementById('vid-pp-btn');
@@ -864,7 +1223,7 @@ function scheduleEfx(stream, patch) {
 }
 
 function _setPanelDisabled(stream, masterOn) {
-  const swKeys = ['noise','blur','occ','bright','cont','color'];
+  const swKeys = ['noise','blur','occ','bc','color','mosaic','overlay'];
   for (const sec of swKeys) {
     const swBtn = document.getElementById(stream+'-'+sec+'-sw');
     if (!swBtn) continue;
@@ -874,12 +1233,10 @@ function _setPanelDisabled(stream, masterOn) {
     const params = sect.querySelector('.eff-params');
     if (params) {
       const active = masterOn && swBtn.classList.contains('on');
-      params.querySelectorAll('input, select').forEach(el => el.disabled = !active);
+      params.querySelectorAll('input, select, button:not(.btn-reset):not(.preset-btn)').forEach(el => el.disabled = !active);
       params.style.opacity = active ? '' : '0.45';
     }
   }
-  const bk = document.getElementById(stream+'-black');
-  if (bk) bk.disabled = !masterOn;
   const rd = document.getElementById(stream+'-efx-rand');
   if (rd) rd.disabled = !masterOn;
 }
@@ -905,22 +1262,32 @@ function toggleEffectPreview(stream) {
   scheduleEfx(stream, {preview_enabled: !isOn});
 }
 
-function toggleBlack(stream) {
-  const btn = document.getElementById(stream+'-black');
-  const isOn = btn.classList.contains('on');
-  btn.classList.toggle('on', !isOn);
-  scheduleEfx(stream, {black_screen: !isOn});
-}
 
-const EFFECT_KEY = {occ: 'occlusion', bright: 'brightness', cont: 'contrast'};
+const EFFECT_KEY = {occ: 'occlusion'};
 function toggleEffect(stream, effectId) {
+  // 亮度/对比度合并开关：同时控制 brightness_enabled 和 contrast_enabled
+  if (effectId === 'bc') {
+    const btn = document.getElementById(stream+'-bc-sw');
+    if (!btn) return;
+    const isOn = btn.classList.contains('on');
+    btn.classList.toggle('on', !isOn);
+    scheduleEfx(stream, {brightness_enabled: !isOn, contrast_enabled: !isOn});
+    const sect = btn.closest('.eff-section');
+    if (sect) {
+      const params = sect.querySelector('.eff-params');
+      if (params) {
+        params.querySelectorAll('input, select').forEach(el => el.disabled = isOn);
+        params.style.opacity = !isOn ? '' : '0.45';
+      }
+    }
+    return;
+  }
   const apiKey = EFFECT_KEY[effectId] || effectId;
   const btn = document.getElementById(stream+'-'+effectId+'-sw');
   if (!btn) return;
   const isOn = btn.classList.contains('on');
   btn.classList.toggle('on', !isOn);
   scheduleEfx(stream, {[apiKey+'_enabled']: !isOn});
-  // Immediately update this section's params disabled state
   const sect = btn.closest('.eff-section');
   if (sect) {
     const params = sect.querySelector('.eff-params');
@@ -968,6 +1335,13 @@ function confirmRandom() {
     color_enabled: Math.random()>0.5,
     color_hue_shift: Math.round(rnd(-180,180)),
     color_saturation: Math.round(rnd(0.2,2.0)*20)/20,
+    color_temperature: Math.round(rnd(-50,50)),
+    color_brightness_bias: Math.round(rnd(0.3, 0.7)*20)/20,
+    color_invert: false,
+    mosaic_enabled: Math.random()>0.6,
+    mosaic_block_size: Math.floor(rnd(4,32)),
+    mosaic_blur_radius: 0,
+    overlay_enabled: false,
   };
   fetch(efxApi(s), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(patch)})
     .then(r=>r.json()).then(cfg=>syncEffectUI(s, cfg));
@@ -999,39 +1373,56 @@ function syncEffectUI(s, c) {
       prevBtn.textContent = c.preview_enabled ? '干扰预览: 开' : '干扰预览: 关';
     }
   }
-  setToggle(s+'-black', c.black_screen);
-  setToggle(s+'-noise-sw',  c.noise_enabled);
-  setToggle(s+'-blur-sw',   c.blur_enabled);
-  setToggle(s+'-occ-sw',    c.occlusion_enabled);
-  setToggle(s+'-bright-sw', c.brightness_enabled);
-  setToggle(s+'-cont-sw',   c.contrast_enabled);
-  setToggle(s+'-color-sw',  c.color_enabled);
-  // Sync all disabled states
+  setToggle(s+'-noise-sw',   c.noise_enabled);
+  setToggle(s+'-blur-sw',    c.blur_enabled);
+  setToggle(s+'-occ-sw',     c.occlusion_enabled);
+  setToggle(s+'-bc-sw',      c.brightness_enabled||c.contrast_enabled);
+  setToggle(s+'-color-sw',   c.color_enabled);
+  setToggle(s+'-mosaic-sw',  c.mosaic_enabled);
+  setToggle(s+'-overlay-sw', c.overlay_enabled);
   _setPanelDisabled(s, masterOn);
 
   const setSlider = (id, val) => { const el=document.getElementById(id); if(el) el.value=val; };
   setSlider(s+'-noise-sigma', c.noise_gaussian_sigma);
   setSlider(s+'-noise-sp',    +(c.noise_sp_prob*100).toFixed(1));
   setSlider(s+'-blur-k',  c.blur_kernel);
+  setSlider(s+'-blur-ma', c.blur_motion_angle||0);
+  setSlider(s+'-blur-ml', c.blur_motion_length||15);
   setSlider(s+'-occ-cnt', c.occlusion_count);
   setSlider(s+'-occ-sz',  c.occlusion_max_size);
   setSlider(s+'-occ-ref', c.occlusion_refresh_sec);
   setSlider(s+'-bright-v', c.brightness_value);
   setSlider(s+'-cont-v',   c.contrast_value);
-  setSlider(s+'-hue', c.color_hue_shift);
-  setSlider(s+'-sat', c.color_saturation);
+  setSlider(s+'-hue',  c.color_hue_shift);
+  setSlider(s+'-sat',  c.color_saturation);
+  setSlider(s+'-temp', c.color_temperature||0);
+  setSlider(s+'-mosaic-bs',   c.mosaic_block_size||16);
+  setSlider(s+'-mosaic-blur', c.mosaic_blur_radius||0);
+  setSlider(s+'-overlay-opacity', c.overlay_opacity||0.5);
 
   const setVal = (id, txt) => { const el=document.getElementById(id); if(el) el.textContent=txt; };
   setVal(s+'-noise-sigma-v', Math.round(c.noise_gaussian_sigma));
   setVal(s+'-noise-sp-v', (c.noise_sp_prob*100).toFixed(1)+'%');
-  setVal(s+'-blur-k-v', c.blur_kernel);
+  setVal(s+'-blur-k-v',  c.blur_kernel);
+  setVal(s+'-blur-ma-v', (c.blur_motion_angle||0)+'°');
+  setVal(s+'-blur-ml-v', c.blur_motion_length||15);
   setVal(s+'-occ-cnt-v', c.occlusion_count);
   setVal(s+'-occ-sz-v',  c.occlusion_max_size);
   setVal(s+'-occ-ref-v', c.occlusion_refresh_sec+'s');
   setVal(s+'-bright-disp', c.brightness_value>0?'+'+c.brightness_value:c.brightness_value);
   setVal(s+'-cont-disp', parseFloat(c.contrast_value).toFixed(2)+'×');
-  setVal(s+'-hue-v', c.color_hue_shift+'°');
-  setVal(s+'-sat-v', parseFloat(c.color_saturation).toFixed(2));
+  setVal(s+'-hue-v',  c.color_hue_shift+'°');
+  setVal(s+'-sat-v',  parseFloat(c.color_saturation).toFixed(2));
+  const tv=c.color_temperature||0; setVal(s+'-temp-v', (tv>0?'+':'')+tv+'℃');
+  setVal(s+'-mosaic-bs-v',   (c.mosaic_block_size||16)+'px');
+  setVal(s+'-mosaic-blur-v', c.mosaic_blur_radius||0);
+  setVal(s+'-overlay-opacity-v', ((c.overlay_opacity||0.5)*100).toFixed(0)+'%');
+
+  const ib=document.getElementById(s+'-invert-btn');
+  if(ib){ib.classList.toggle('on',!!c.color_invert);ib.textContent=c.color_invert?'反相: 开':'反相: 关';}
+
+  setSlider(s+'-color-bright', Math.round((c.color_brightness_bias??0.5)*100));
+  setVal(s+'-color-bright-v', Math.round((c.color_brightness_bias??0.5)*100)+'%');
 
   const bt = document.getElementById(s+'-blur-type');
   if (bt) bt.value = c.blur_type||'gaussian';
@@ -1041,6 +1432,29 @@ function syncEffectUI(s, c) {
   chk(s+'-occ-black', colors.includes('black'));
   chk(s+'-occ-white', colors.includes('white'));
   chk(s+'-occ-gray',  colors.includes('gray'));
+
+  // 同步蒙版明度滑条并更新渐变
+  const ovHue = document.getElementById(s+'-overlay-hue');
+  if(ovHue) updateBrightnessGradient(s, ovHue.value);
+  const ovBright = document.getElementById(s+'-overlay-bright');
+  if(ovBright) {
+    const r=c.overlay_r||0, g=c.overlay_g||0, b=c.overlay_b||0;
+    const lum = Math.round((r+g+b)/(3*255)*100);
+    ovBright.value = lum;
+    const bvEl = document.getElementById(s+'-overlay-bright-v');
+    if(bvEl) bvEl.textContent = lum+'%';
+  }
+  updateOverlayDisplay(s, c.overlay_r||0, c.overlay_g||0, c.overlay_b||0);
+
+  // 摄像头镜像按鈕同步（flip_h=true表示已纠正，镜像模式未开）
+  if(s === WCAM) {
+    const mb = document.getElementById('wcam-mirror-btn');
+    if(mb) {
+      const mirrorMode = !(c.flip_h ?? true);
+      mb.classList.toggle('on', mirrorMode);
+      mb.textContent = mirrorMode ? '镜像反转: 开' : '镜像反转: 关';
+    }
+  }
 }
 
 // ─── Proxy stream ─────────────────────────────────────────────────────────────
@@ -1127,5 +1541,6 @@ document.addEventListener('keydown', e => {
 
 pollStatus();
 </script>
+</div><!-- /page-wrap -->
 </body>
 </html>
