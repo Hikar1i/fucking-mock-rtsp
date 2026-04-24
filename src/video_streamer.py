@@ -348,7 +348,13 @@ class VideoStreamer:
 
             src_fps = cap.get(cv2.CAP_PROP_FPS) or self._out_fps
             total_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
-            total_sec = total_frames / src_fps if src_fps > 0 else 0.0
+            if total_frames <= 0:
+                # Unknown frame count (VFR / bad container metadata); rely on
+                # cap.read() failure for EoF detection instead.
+                total_frames = float("inf")
+                total_sec = 0.0
+            else:
+                total_sec = total_frames / src_fps if src_fps > 0 else 0.0
             src_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             src_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
@@ -417,8 +423,17 @@ class VideoStreamer:
                     frame_pos += speed
                     target_frame = int(frame_pos)
 
-                    if target_frame >= total_frames:
-                        # End of video
+                    # EoF: counter-based check OR actual read failure
+                    # (CAP_PROP_FRAME_COUNT is unreliable for some containers/VFR)
+                    _at_eof = target_frame >= total_frames
+                    frame = None
+                    if not _at_eof:
+                        cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
+                        ret, frame = cap.read()
+                        if not ret:
+                            _at_eof = True
+
+                    if _at_eof:
                         mode = self.state.loop_mode
                         if mode == "single":
                             logger.info("Video loop (single): rewinding.")
@@ -444,11 +459,6 @@ class VideoStreamer:
                             self._play_event.clear()
                             break
 
-                    cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
-                    ret, frame = cap.read()
-                    if not ret:
-                        frame_pos = max(0.0, frame_pos - speed)
-                        continue
 
                     self.state.current_seconds = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
 
