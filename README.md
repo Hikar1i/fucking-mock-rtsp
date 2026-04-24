@@ -167,7 +167,7 @@ pip wheel（`opencv-python`）**不包含 CUDA 编译**。如需 `OPENCV_CUDA_AV
 - 使用 conda-forge 提供的含 CUDA 编译的 OpenCV，**或**
 - 从源码编译 OpenCV（`cmake -D WITH_CUDA=ON ...`）
 
-运行时若 OpenCV CUDA 不可用，Gaussian 模糊自动降级至 CPU（已 SIMD 优化，1ms 左右）。
+运行时若 OpenCV CUDA 不可用，Gaussian 模糊和马赛克 resize 自动降级至 CPU（已 SIMD 优化，1ms 左右）。
 
 ---
 
@@ -468,6 +468,8 @@ FastAPI /stream/* 每帧从队列取最新 JPEG 推送给浏览器
 - **Config Generation**：每次配置变更递增 generation 计数器；帧处理线程检测到变更时清空预览队列，避免旧效果帧残留
 - **状态保存/恢复**：关闭主开关时保存当前配置，重新开启时自动恢复
 - **GPU 加速分层**：各效果方法内部按 `CuPy → PyTorch CUDA → CPU` 优先级选路；亮度/对比度因 PCIe 传输开销高于 `convertScaleAbs`（0.19ms），PyTorch 路径被排除，仅 CuPy 路径生效
+- **CuPy 统一管线**：`CUPY_AVAILABLE` 时，所有效果（噪点、模糊、亮度/对比度、颜色、**马赛克**、遮挡、**蒙版**）全部在单次 `asarray → asnumpy` 内串联完成，PCIe 传输固定为 2 次；马赛克使用广播索引像素化 + `cupyx.scipy.ndimage.gaussian_filter` 模糊，颜色效果新增色温/明度偏置/反相均在 GPU 执行
+- **OpenCV CUDA 路径**：`OPENCV_CUDA_AVAILABLE` 时，`_apply_blur`（高斯）和 `_apply_mosaic`（resize + 模糊）均走 OpenCV CUDA；颜色效果的色相/饱和度也使用 OpenCV CUDA colorspace 转换
 
 ### GPU 后端（gpu_backend.py）
 

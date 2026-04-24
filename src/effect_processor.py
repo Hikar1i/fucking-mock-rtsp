@@ -196,9 +196,13 @@ class EffectProcessor:
                 gf = self._gpu_bc(gf, cfg, cp)
             if cfg.color_enabled:
                 gf = self._gpu_color(gf, cfg, cp)
+            if cfg.mosaic_enabled:
+                gf = self._gpu_mosaic(gf, cfg, cp)
             frame = cp.asnumpy(gf)
             if cfg.occlusion_enabled:
                 frame = self._apply_occlusion(frame, cfg)
+            if cfg.overlay_enabled:
+                frame = self._apply_overlay(frame, cfg)
             return frame
 
         # ── Per-effect path: PyTorch CUDA or CPU (each method handles GPU internally) ──
@@ -315,6 +319,19 @@ class EffectProcessor:
         h, w = frame.shape[:2]
         block = max(2, cfg.mosaic_block_size)
         small_w, small_h = max(1, w // block), max(1, h // block)
+        if _gpu.OPENCV_CUDA_AVAILABLE:
+            try:
+                gm = cv2.cuda_GpuMat()
+                gm.upload(frame)
+                gm = cv2.cuda.resize(gm, (small_w, small_h), interpolation=cv2.INTER_NEAREST)
+                gm = cv2.cuda.resize(gm, (w, h), interpolation=cv2.INTER_NEAREST)
+                if cfg.mosaic_blur_radius > 0:
+                    k = cfg.mosaic_blur_radius * 2 + 1
+                    gauss = cv2.cuda.createGaussianFilter(cv2.CV_8UC3, cv2.CV_8UC3, (k, k), 0)
+                    gm = gauss.apply(gm)
+                return gm.download()
+            except Exception:
+                pass
         small = cv2.resize(frame, (small_w, small_h), interpolation=cv2.INTER_NEAREST)
         frame = cv2.resize(small, (w, h), interpolation=cv2.INTER_NEAREST)
         # 模糊：像素化后叠加高斯模糊，使块边缘柔和
@@ -335,6 +352,8 @@ class EffectProcessor:
 
     @staticmethod
     def _apply_color(frame: np.ndarray, cfg: EffectConfig) -> np.ndarray:
+        # ── 色相/饱和度：优先使用可用的最高级 GPU 路径 ──
+        _hue_sat_done = False
         if _gpu.OPENCV_CUDA_AVAILABLE:
             try:
                 gpu_bgr = cv2.cuda_GpuMat()
@@ -361,29 +380,32 @@ class EffectProcessor:
                     hsv = hsv.astype(np.uint8)
                 gpu_hsv2 = cv2.cuda_GpuMat()
                 gpu_hsv2.upload(hsv)
-                return cv2.cuda.cvtColor(gpu_hsv2, cv2.COLOR_HSV2BGR).download()
+                frame = cv2.cuda.cvtColor(gpu_hsv2, cv2.COLOR_HSV2BGR).download()
+                _hue_sat_done = True
             except Exception:
                 pass
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV).astype(np.float32)
-        if _gpu.CUPY_AVAILABLE:
-            cp = _gpu.cp
-            h_gpu = cp.asarray(hsv)
-            h_gpu[:, :, 0] = (h_gpu[:, :, 0] + cfg.color_hue_shift / 2.0) % 180.0
-            h_gpu[:, :, 1] = cp.clip(h_gpu[:, :, 1] * cfg.color_saturation, 0, 255)
-            return cv2.cvtColor(cp.asnumpy(h_gpu).astype(np.uint8), cv2.COLOR_HSV2BGR)
-        if _gpu.TORCH_CUDA_AVAILABLE:
-            th = _gpu.torch
-            h_gpu = th.as_tensor(hsv).cuda()
-            h_gpu[:, :, 0] = (h_gpu[:, :, 0] + cfg.color_hue_shift / 2.0) % 180.0
-            h_gpu[:, :, 1] = th.clamp(h_gpu[:, :, 1] * cfg.color_saturation, 0, 255)
-            return cv2.cvtColor(h_gpu.cpu().numpy().astype(np.uint8), cv2.COLOR_HSV2BGR)
-        # CPU fallback
-        hsv[:, :, 0] = (hsv[:, :, 0] + cfg.color_hue_shift / 2.0) % 180.0
-        # 饱和度缩放
-        hsv[:, :, 1] = np.clip(hsv[:, :, 1] * cfg.color_saturation, 0, 255)
-        hsv = hsv.astype(np.uint8)
-        frame = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
-        # 色温：正值偏暖（提亮R降低B），负值偏冷（提亮B降低R）
+        if not _hue_sat_done:
+            hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV).astype(np.float32)
+            if _gpu.CUPY_AVAILABLE:
+                cp = _gpu.cp
+                h_gpu = cp.asarray(hsv)
+                h_gpu[:, :, 0] = (h_gpu[:, :, 0] + cfg.color_hue_shift / 2.0) % 180.0
+                h_gpu[:, :, 1] = cp.clip(h_gpu[:, :, 1] * cfg.color_saturation, 0, 255)
+                frame = cv2.cvtColor(cp.asnumpy(h_gpu).astype(np.uint8), cv2.COLOR_HSV2BGR)
+            elif _gpu.TORCH_CUDA_AVAILABLE:
+                th = _gpu.torch
+                h_gpu = th.as_tensor(hsv).cuda()
+                h_gpu[:, :, 0] = (h_gpu[:, :, 0] + cfg.color_hue_shift / 2.0) % 180.0
+                h_gpu[:, :, 1] = th.clamp(h_gpu[:, :, 1] * cfg.color_saturation, 0, 255)
+                frame = cv2.cvtColor(h_gpu.cpu().numpy().astype(np.uint8), cv2.COLOR_HSV2BGR)
+            else:
+                # CPU fallback
+                hsv[:, :, 0] = (hsv[:, :, 0] + cfg.color_hue_shift / 2.0) % 180.0
+                # 饱和度缩放
+                hsv[:, :, 1] = np.clip(hsv[:, :, 1] * cfg.color_saturation, 0, 255)
+                frame = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
+        # ── 色温/明度偏置/反相：所有路径均执行 ──
+        # 色温：正値偏暖（提亮加R降低B），负値偏冷（提亮加B降低R）
         if cfg.color_temperature != 0:
             t = float(cfg.color_temperature) * 1.5
             f = frame.astype(np.float32)
@@ -460,6 +482,28 @@ class EffectProcessor:
         return cp.clip(cp.abs(gf.astype(cp.float32) * alpha + beta), 0, 255).astype(cp.uint8)
 
     @staticmethod
+    def _gpu_mosaic(gf, cfg, cp):
+        """马赛克像素化 + 可选高斯模糊，完全在 CuPy GPU 上执行，无需下载回 CPU。"""
+        h, w = gf.shape[:2]
+        block = max(2, cfg.mosaic_block_size)
+        # 广播索引实现最近邻像素化（等价于 INTER_NEAREST 缩小再放大）
+        row_src = cp.minimum((cp.arange(h) // block) * block, h - 1)
+        col_src = cp.minimum((cp.arange(w) // block) * block, w - 1)
+        gf = gf[row_src[:, None], col_src[None, :], :]
+        # 可选：像素化后叠加高斯模糊使块边缘柔和
+        if cfg.mosaic_blur_radius > 0:
+            try:
+                from cupyx.scipy import ndimage as cpnd
+                sigma = float(cfg.mosaic_blur_radius)
+                blurred = cpnd.gaussian_filter(gf.astype(cp.float32), sigma=[sigma, sigma, 0])
+                gf = cp.clip(blurred, 0, 255).astype(cp.uint8)
+            except Exception:
+                frame_cpu = cp.asnumpy(gf)
+                k = cfg.mosaic_blur_radius * 2 + 1
+                gf = cp.asarray(cv2.GaussianBlur(frame_cpu, (k, k), 0))
+        return gf
+
+    @staticmethod
     def _gpu_color(gf: np.ndarray, cfg: EffectConfig, cp) -> np.ndarray:
         """BGR → HSV → apply hue/saturation → HSV → BGR, entirely in CuPy."""
         f = gf.astype(cp.float32) / 255.0
@@ -498,7 +542,28 @@ class EffectProcessor:
         out_b = cp.select(conds, [p, p, t, v, v, q])
 
         result = cp.stack([out_b, out_g, out_r], axis=2)
-        return cp.clip(result * 255.0, 0.0, 255.0).astype(cp.uint8)
+        result = cp.clip(result * 255.0, 0.0, 255.0).astype(cp.uint8)
+        # 色温：正値偏暖（提亮加R降低B），负値偏冷（提亮加B降低R）
+        if cfg.color_temperature != 0:
+            t = float(cfg.color_temperature) * 1.5
+            rf = result.astype(cp.float32)
+            rf[:, :, 2] = cp.clip(rf[:, :, 2] + t, 0, 255)
+            rf[:, :, 0] = cp.clip(rf[:, :, 0] - t, 0, 255)
+            result = rf.astype(cp.uint8)
+        # 明度偏置：<0.5 向黑色过渡，>0.5 向白色过渡
+        b = float(cfg.color_brightness_bias)
+        if b != 0.5:
+            rf = result.astype(cp.float32)
+            if b < 0.5:
+                rf = rf * (b * 2.0)
+            else:
+                t2 = (b - 0.5) * 2.0
+                rf = rf + (255.0 - rf) * t2
+            result = cp.clip(rf, 0, 255).astype(cp.uint8)
+        # 反相
+        if cfg.color_invert:
+            result = 255 - result
+        return result
 
     def _apply_occlusion(self, frame: np.ndarray, cfg: EffectConfig) -> np.ndarray:
         now = time.monotonic()
