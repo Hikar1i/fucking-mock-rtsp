@@ -1,4 +1,4 @@
-"""Webcam RTSP streamer: captures local camera and pushes via FFmpeg to MediaMTX."""
+"""本地摄像头 RTSP 推流器：捕获摄像头画面并通过 FFmpeg 推送至 MediaMTX。"""
 
 import logging
 import queue
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 def probe_webcam(device_id: int = 0) -> bool:
-    """Return True if a webcam is accessible at the given device ID."""
+    """检测指定设备ID的摄像头是否可用，可用返回 True。"""
     cap = cv2.VideoCapture(device_id, cv2.CAP_ANY)
     ok = cap.isOpened()
     cap.release()
@@ -25,7 +25,7 @@ def probe_webcam(device_id: int = 0) -> bool:
 
 
 class WebcamStreamer:
-    """Reads from a local webcam; RTSP push and MJPEG preview are independently controllable."""
+    """本地摄像头采集器，RTSP 推流与网页 MJPEG 预览可独立开关。"""
 
     def __init__(self, cfg: dict[str, Any]):
         self._cfg = cfg
@@ -47,7 +47,7 @@ class WebcamStreamer:
 
         self._web_preview: bool = bool(cfg["webcam"].get("web_preview", True))
 
-        # Preview pipeline: downscaled JPEG queue + thread pool for encoding
+        # 预览管线：降分辨率 JPEG 队列 + 线程池编码
         self._preview_fps: int = max(1, self._fps // 2)
         self._preview_queue: queue.Queue = queue.Queue(maxsize=5)
         self._preview_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="wcam-jpeg")
@@ -61,16 +61,17 @@ class WebcamStreamer:
         self._wcam_prev_gen: int = 0
 
         self.effects = EffectProcessor()
+        self.effects._cfg.flip_h = True  # 摄像头默认纠正镜像方向（水平翻转）
 
-    # ------------------------------------------------------------------ public API
+    # ------------------------------------------------------------------ 公开接口
 
     @property
     def enabled(self) -> bool:
-        """True when RTSP push is active."""
+        """RTSP 推流是否激活。"""
         return self._streaming
 
     def enable(self) -> bool:
-        """Enable RTSP push; starts frame loop if not already running."""
+        """开启 RTSP 推流；若循环未启动则自动启动。"""
         if not self.available:
             return False
         self._streaming = True
@@ -79,10 +80,10 @@ class WebcamStreamer:
         return True
 
     def disable(self) -> None:
-        """Disable RTSP push only; MJPEG preview continues if thread is running."""
+        """仅关闭 RTSP 推流，网页预览线程继续运行。"""
         self._streaming = False
         self._kill_ffmpeg()
-        logger.info("Webcam RTSP streaming disabled (preview still active).")
+        logger.info("摄像头 RTSP 推流已停止（预览保持运行）。")
 
     def start(self) -> None:
         if not self.available:
@@ -106,7 +107,7 @@ class WebcamStreamer:
         return self._preview_fps
 
     def get_preview_jpeg(self) -> bytes | None:
-        """Return the most recent preview JPEG (bytes). Falls back to last known frame."""
+        """返回最新预览帧的 JPEG 字节，若队列为空则返回上一帧缓存。"""
         try:
             jpg = self._preview_queue.get_nowait()
         except queue.Empty:
@@ -119,7 +120,7 @@ class WebcamStreamer:
             return self._last_preview_jpeg
 
     def _enqueue_preview(self, frame: np.ndarray) -> None:
-        """Runs in thread pool: letterbox → JPEG encode → enqueue."""
+        """在线程池中执行：等比缩放加黑边 → JPEG 编码 → 入队。"""
         try:
             target_w, target_h = 640, 360
             h, w = frame.shape[:2]
@@ -146,7 +147,7 @@ class WebcamStreamer:
         except Exception:
             pass
 
-    # ------------------------------------------------------------------ internals
+    # ------------------------------------------------------------------ 内部实现
 
     def _start_thread(self) -> None:
         if self._running:
@@ -158,7 +159,7 @@ class WebcamStreamer:
         logger.info("Webcam streamer started.")
 
     def _writer_loop(self, proc: subprocess.Popen) -> None:
-        """Dedicated thread: drains _ffmpeg_write_queue → FFmpeg stdin."""
+        """专用写线程：从 _ffmpeg_write_queue 取帧数据并写入 FFmpeg stdin。"""
         while True:
             try:
                 data = self._ffmpeg_write_queue.get(timeout=0.5)
@@ -177,7 +178,7 @@ class WebcamStreamer:
                 break
 
     def _kill_ffmpeg(self) -> None:
-        # Signal writer thread to stop
+        # 通知写线程退出
         try:
             self._ffmpeg_write_queue.put_nowait(None)
         except queue.Full:
@@ -216,7 +217,7 @@ class WebcamStreamer:
                 time.sleep(3)
                 continue
 
-            # Request configured resolution; webcam uses nearest supported mode
+            # 请求配置的分辨率，摄像头将使用最接近的支持模式
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._width)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._height)
             actual_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or self._width)
@@ -226,7 +227,7 @@ class WebcamStreamer:
 
             try:
                 while not self._stop_event.is_set():
-                    # Streaming toggle: manage FFmpeg process
+                    # 推流开关：按需启动/终止 FFmpeg 进程
                     with self._ffmpeg_lock:
                         has_proc = self._ffmpeg_proc is not None
                     if self._streaming and not has_proc:
@@ -247,16 +248,16 @@ class WebcamStreamer:
                     raw = frame
                     effected = self.effects.apply(frame.copy())
 
-                    # Write to FFmpeg if streaming
+                    # 推流中则将效果帧写入 FFmpeg
                     with self._ffmpeg_lock:
                         proc = self._ffmpeg_proc
                     if proc is not None:
                         try:
                             self._ffmpeg_write_queue.put_nowait(effected.tobytes())
                         except queue.Full:
-                            pass  # Drop frame: backpressured, never block stream loop
+                            pass  # 队列满则丢帧，绝不阻塞主采集循环
 
-                    # Preview: every frame at native rate (already low due to webcam fps)
+                    # 网页预览：效果配置变更时清空旧帧队列，再提交新帧编码
                     cur_gen = self.effects.get_generation()
                     if cur_gen != self._wcam_prev_gen:
                         self._wcam_prev_gen = cur_gen
@@ -265,7 +266,8 @@ class WebcamStreamer:
                                 self._preview_queue.get_nowait()
                             except queue.Empty:
                                 break
-                    preview_frame = effected if self.effects.preview_active else raw
+                    # flip_h 始终体现在预览中；仅 preview_active 时叠加其他干扰效果
+                    preview_frame = effected if self.effects.preview_active else self.effects.apply_flip_only(raw)
                     if self._web_preview:
                         self._preview_pool.submit(self._enqueue_preview, preview_frame.copy())
 
@@ -276,7 +278,7 @@ class WebcamStreamer:
         with self._preview_jpeg_lock:
             self._last_preview_jpeg = None
 
-    def _start_ffmpeg(self, width: int, height: int, rtsp_url: str) -> subprocess.Popen | None:
+    def _start_ffmpeg(self, width: int, height: int, rtsp_url: str) -> subprocess.Popen | None:  # noqa: E501
         encoder_args = _encoder_args(self._encoder, self._preset, self._bitrate)
         cmd = [
             "ffmpeg", "-loglevel", "error",
@@ -298,7 +300,7 @@ class WebcamStreamer:
                 cmd, stdin=subprocess.PIPE,
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
-            # Fresh write queue + dedicated non-blocking writer thread
+            # 重置写队列并启动专用写线程
             self._ffmpeg_write_queue = queue.Queue(maxsize=4)
             t = threading.Thread(target=self._writer_loop, args=(proc,),
                                  daemon=True, name="wcam-ffmpeg-wr")
@@ -314,6 +316,7 @@ class WebcamStreamer:
 
 
 def _encoder_args(encoder: str, preset: str, bitrate: str) -> list[str]:
+    """根据编码器类型返回对应的 FFmpeg 编码参数。"""
     if encoder == "h264_nvenc":
         return ["-c:v", "h264_nvenc", "-preset", "p1", "-b:v", bitrate]
     return ["-c:v", "libx264", "-preset", preset, "-tune", "zerolatency", "-b:v", bitrate]

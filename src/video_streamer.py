@@ -1,4 +1,4 @@
-"""Video file RTSP streamer with playback control (play/pause/seek/speed/loop)."""
+"""视频文件 RTSP 推流器，支持播放控制（播放/暂停/跳转/倍速/循环）。"""
 
 import logging
 import queue
@@ -24,7 +24,7 @@ SPEED_STEP = 0.1
 
 
 class VideoState:
-    """Thread-safe playback state."""
+    """线程安全的视频播放状态容器。"""
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -38,7 +38,8 @@ class VideoState:
         self.height: int = 720
         self.speed: float = 1.0
         self.loop_mode: str = "none"   # "none" | "single" | "playlist"
-        self.streaming: bool = True     # RTSP push on/off
+        self.streaming: bool = True     # RTSP 推流开关
+        self.frame_frozen: bool = False  # 预览冻结，RTSP 持续推送最后一帧
 
     def snapshot(self) -> dict:
         with self._lock:
@@ -53,6 +54,7 @@ class VideoState:
                 "speed": round(self.speed, 1),
                 "loop_mode": self.loop_mode,
                 "streaming": self.streaming,
+                "frame_frozen": self.frame_frozen,
             }
 
     def request_seek(self, seconds: float) -> None:
@@ -67,7 +69,7 @@ class VideoState:
 
 
 class VideoStreamer:
-    """Reads a video file with playback control and pushes RTSP via FFmpeg."""
+    """视频文件播放器：读取视频帧并通过 FFmpeg 推送至 MediaMTX RTSP 服务器。"""
 
     def __init__(self, cfg: dict[str, Any]):
         self._cfg = cfg
@@ -92,18 +94,19 @@ class VideoStreamer:
 
         self._web_preview: bool = bool(cfg["video"].get("web_preview", True))
 
-        # Preview pipeline: downscaled JPEG queue + thread pool for encoding
+        # 预览管线：缩略帧 JPEG 队列 + 线程池编码
         self._preview_fps: int = max(1, self._out_fps // 2)
         self._preview_queue: queue.Queue = queue.Queue(maxsize=5)
         self._preview_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="vid-jpeg")
         self._last_preview_jpeg: bytes | None = None
         self._preview_jpeg_lock = threading.Lock()
 
-        # FFmpeg process — managed inside stream loop but tracked for enable/disable
+        # FFmpeg 进程，由推流循环管理，这里仅用于启用/禁用状态追踪
         self._ffmpeg_proc: subprocess.Popen | None = None
         self._ffmpeg_lock = threading.Lock()
         self._ffmpeg_write_queue: queue.Queue = queue.Queue(maxsize=4)
         self._ffmpeg_writer_thread: threading.Thread | None = None
+        self._frozen_raw_frame: np.ndarray | None = None
 
         default_file = cfg["video"].get("default_file", "")
         if default_file:
@@ -111,7 +114,7 @@ class VideoStreamer:
         else:
             self._pick_first_video()
 
-    # ------------------------------------------------------------------ helpers
+    # ------------------------------------------------------------------ 内部辅助
 
     def _pick_first_video(self) -> None:
         if not self._videos_dir.exists():
@@ -149,15 +152,17 @@ class VideoStreamer:
         next_idx = (idx + 1) % len(videos)
         return str(self._videos_dir / videos[next_idx]) if next_idx != idx else None
 
-    # ------------------------------------------------------------------ playback API
+    # ------------------------------------------------------------------ 播放控制接口
 
     def load_video(self, name_or_path: str) -> bool:
         resolved = self._resolve_video_path(name_or_path)
         if not resolved.exists():
             logger.error("Video not found: %s", name_or_path)
             return False
-        was_playing = self.state.playing
+        was_playing = self.state.playing or self.state.frame_frozen
         self.state.playing = False
+        self.state.frame_frozen = False
+        self._frozen_raw_frame = None
         self._play_event.clear()
         self.state.file_path = str(resolved)
         self.state.seek_request = 0.0
@@ -168,12 +173,15 @@ class VideoStreamer:
         return True
 
     def play(self) -> None:
+        self.state.frame_frozen = False
         self.state.playing = True
         self._play_event.set()
 
     def pause(self) -> None:
+        """冻结画面：预览停在最后一帧，RTSP 持续推送该帧。"""
         self.state.playing = False
-        self._play_event.clear()
+        self.state.frame_frozen = True
+        # 不清除 _play_event，推流循环需继续运行以持续推送冻结帧
 
     def seek(self, seconds: float) -> None:
         self.state.request_seek(max(0.0, seconds))
@@ -197,19 +205,19 @@ class VideoStreamer:
             self.state.loop_mode = mode
 
     def enable_streaming(self) -> None:
-        """Start RTSP push (MJPEG preview is unaffected)."""
+        """启用 RTSP 推流（不影响网页 MJPEG 预览）。"""
         if not self.state.streaming:
             self.state.streaming = True
-            logger.info("Video RTSP streaming enabled.")
+            logger.info("视频 RTSP 推流已启用。")
 
     def disable_streaming(self) -> None:
-        """Stop RTSP push while keeping frame loop alive for MJPEG preview."""
+        """停止 RTSP 推流，帧循环继续运行以保持网页预览正常。"""
         if self.state.streaming:
             self.state.streaming = False
             self._kill_ffmpeg()
             logger.info("Video RTSP streaming disabled.")
 
-    # ------------------------------------------------------------------ lifecycle
+    # ------------------------------------------------------------------ 生命周期
 
     def start(self) -> None:
         if self._running:
@@ -239,7 +247,7 @@ class VideoStreamer:
         return self._preview_fps
 
     def get_preview_jpeg(self) -> bytes | None:
-        """Return the most recent preview JPEG (bytes). Falls back to last known frame."""
+        """返回最新预览 JPEG 字节，无新帧时回退到上一次的帧。"""
         try:
             jpg = self._preview_queue.get_nowait()
         except queue.Empty:
@@ -252,7 +260,7 @@ class VideoStreamer:
             return self._last_preview_jpeg
 
     def _enqueue_preview(self, frame: np.ndarray) -> None:
-        """Runs in thread pool: letterbox → JPEG encode → enqueue."""
+        """在线程池中执行：信箱缩放 → JPEG 编码 → 入队。"""
         try:
             target_w, target_h = 640, 360
             h, w = frame.shape[:2]
@@ -267,7 +275,7 @@ class VideoStreamer:
             if not ret:
                 return
             jpg = buf.tobytes()
-            # Drop oldest frames if queue is full (prefer freshest)
+            # 队列满时丢弃最旧帧，保留最新帧
             while self._preview_queue.full():
                 try:
                     self._preview_queue.get_nowait()
@@ -280,10 +288,10 @@ class VideoStreamer:
         except Exception:
             pass
 
-    # ------------------------------------------------------------------ internal
+    # ------------------------------------------------------------------ 内部实现
 
     def _writer_loop(self, proc: subprocess.Popen) -> None:
-        """Dedicated thread: drains _ffmpeg_write_queue → FFmpeg stdin."""
+        """专用写入线程：将 _ffmpeg_write_queue 队列数据写入 FFmpeg stdin。"""
         while True:
             try:
                 data = self._ffmpeg_write_queue.get(timeout=0.5)
@@ -349,8 +357,7 @@ class VideoStreamer:
             src_fps = cap.get(cv2.CAP_PROP_FPS) or self._out_fps
             total_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
             if total_frames <= 0:
-                # Unknown frame count (VFR / bad container metadata); rely on
-                # cap.read() failure for EoF detection instead.
+                # 帧数未知（VFR / 容器元数据异常），以 cap.read() 失败作为 EOF 检测
                 total_frames = float("inf")
                 total_sec = 0.0
             else:
@@ -363,19 +370,18 @@ class VideoStreamer:
             self.state.width = src_w
             self.state.height = src_h
 
-            # fractional frame position tracker (for speed <> 1.0)
+            # 小数帧位置追踪（支持非 1.0 倍速）
             frame_pos: float = cap.get(cv2.CAP_PROP_POS_FRAMES)
 
             frame_interval = 1.0 / self._out_fps
             next_frame_time = time.monotonic() + frame_interval
 
-            # Preview sub-sampling counters
+            # 预览抽帧计数器
             _prev_counter: int = 0
             _prev_skip: int = max(1, self._out_fps // self._preview_fps)
             _prev_gen: int = self.effects.get_generation()
 
-            # Start FFmpeg only if streaming is enabled AND not already running
-            # (kept alive from previous video for seamless transitions)
+            # 仅在推流开启且 FFmpeg 未运行时启动（保持进程跨视频复用以实现无缝切换）
             with self._ffmpeg_lock:
                 _proc_alive = self._ffmpeg_proc is not None and self._ffmpeg_proc.poll() is None
             if self.state.streaming and not _proc_alive:
@@ -385,16 +391,16 @@ class VideoStreamer:
                 if proc:
                     logger.info("Video → RTSP: %s → %s", Path(file_path).name, rtsp_url)
 
-            _keep_ffmpeg = False  # set True on seamless transitions
+            _keep_ffmpeg = False  # 无缝切换时置 True，保留 FFmpeg 进程
             try:
                 while not self._stop_event.is_set():
-                    # File changed → keep FFmpeg alive, reload outer loop
+                    # 视频文件已切换 → 保留 FFmpeg，重新进入外层循环
                     if file_path != self.state.file_path:
                         logger.info("Video file changed; reloading.")
                         _keep_ffmpeg = True
                         break
 
-                    # Streaming toggle: start/stop FFmpeg as needed
+                    # 推流开关：按需启动/停止 FFmpeg
                     with self._ffmpeg_lock:
                         has_proc = self._ffmpeg_proc is not None
                     if self.state.streaming and not has_proc:
@@ -406,25 +412,66 @@ class VideoStreamer:
                     elif not self.state.streaming and has_proc:
                         self._kill_ffmpeg()
 
-                    # Seek request
+                    # 跳转请求
                     seek_to = self.state.pop_seek_request()
                     if seek_to is not None:
                         cap.set(cv2.CAP_PROP_POS_MSEC, seek_to * 1000)
                         frame_pos = cap.get(cv2.CAP_PROP_POS_FRAMES)
+                        if self.state.frame_frozen:
+                            # 将冻结帧更新到跳转后的位置
+                            ret_s, frm_s = cap.read()
+                            if ret_s:
+                                if src_w != self._out_width or src_h != self._out_height:
+                                    frm_s = cv2.resize(frm_s, (self._out_width, self._out_height))
+                                self._frozen_raw_frame = frm_s
+                                self.state.current_seconds = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
 
-                    # Paused → wait; reset drift timer on resume so no burst
+                    # 暂停/冻结 → 分层处理
                     if not self.state.playing:
-                        self._play_event.wait(timeout=0.5)
-                        next_frame_time = time.monotonic() + frame_interval
+                        if self.state.frame_frozen and self._frozen_raw_frame is not None:
+                            # 冻结模式：持续推送最后一帧（变化效果实时更新）
+                            frozen = self._frozen_raw_frame
+                            effected_frozen = self.effects.apply(frozen.copy())
+                            with self._ffmpeg_lock:
+                                _fproc = self._ffmpeg_proc
+                            if _fproc is not None:
+                                try:
+                                    self._ffmpeg_write_queue.put_nowait(effected_frozen.tobytes())
+                                except queue.Full:
+                                    pass
+                            # 按采样频率更新预览
+                            _prev_counter += 1
+                            if _prev_counter % _prev_skip == 0:
+                                cur_gen = self.effects.get_generation()
+                                if cur_gen != _prev_gen:
+                                    _prev_gen = cur_gen
+                                    while not self._preview_queue.empty():
+                                        try:
+                                            self._preview_queue.get_nowait()
+                                        except queue.Empty:
+                                            break
+                                # flip_h 始终体现在预览中；仅 preview_active 时叠加干扰效果
+                                pf = effected_frozen if self.effects.preview_active else self.effects.apply_flip_only(frozen)
+                                if self._web_preview:
+                                    self._preview_pool.submit(self._enqueue_preview, pf.copy())
+                            sleep_time = next_frame_time - time.monotonic()
+                            if sleep_time > 0:
+                                time.sleep(sleep_time)
+                            elif sleep_time < -frame_interval * 2:
+                                next_frame_time = time.monotonic()
+                            next_frame_time += frame_interval
+                        else:
+                            # 真正暂停（尚无冻结帧）— 等待播放指令
+                            self._play_event.wait(timeout=0.5)
+                            next_frame_time = time.monotonic() + frame_interval
                         continue
 
-                    # Speed: advance frame position by speed factor
+                    # 倍速：按倍速因子推进帧位置
                     speed = max(SPEED_MIN, self.state.speed)
                     frame_pos += speed
                     target_frame = int(frame_pos)
 
-                    # EoF: counter-based check OR actual read failure
-                    # (CAP_PROP_FRAME_COUNT is unreliable for some containers/VFR)
+                    # EOF 检测：计数器数组或实际读取失败（CAP_PROP_FRAME_COUNT 对部分容器/VFR 不可靠）
                     _at_eof = target_frame >= total_frames
                     frame = None
                     if not _at_eof:
@@ -448,7 +495,7 @@ class VideoStreamer:
                                 _keep_ffmpeg = True  # seamless: keep FFmpeg alive
                                 break
                             else:
-                                # Single video in list → rewind seamlessly
+                                # 列表中只有当前视频，无缝回绕
                                 _keep_ffmpeg = True
                                 frame_pos = 0.0
                                 cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
@@ -475,20 +522,23 @@ class VideoStreamer:
                         else:
                             frame = cv2.resize(frame, (self._out_width, self._out_height))
 
-                    # Apply effects: full-quality for RTSP
+                    # 保存当前帧为冻结帧（暂停时使用）
+                    self._frozen_raw_frame = frame
+
+                    # 应用干扰效果，RTSP 使用全质量
                     raw = frame
                     effected = self.effects.apply(frame.copy())
 
-                    # Write to FFmpeg via async queue (non-blocking: drop if full)
+                    # 通过异步队列写入 FFmpeg（非阻塞，满时丢帧）
                     with self._ffmpeg_lock:
                         proc = self._ffmpeg_proc
                     if proc is not None:
                         try:
                             self._ffmpeg_write_queue.put_nowait(effected.tobytes())
                         except queue.Full:
-                            pass  # Drop frame: encoder/network backpressured
+                            pass  # 队列满，丢帧（编码器/网络背压）
 
-                    # Preview: subsampled + downscaled JPEG via thread pool
+                    # 预览：按采样频率逾小圖 JPEG（线程池）
                     _prev_counter += 1
                     if _prev_counter % _prev_skip == 0:
                         cur_gen = self.effects.get_generation()
@@ -499,23 +549,24 @@ class VideoStreamer:
                                     self._preview_queue.get_nowait()
                                 except queue.Empty:
                                     break
-                        preview_frame = effected if self.effects.preview_active else raw
+                        # flip_h 始终体现在预览中；仅 preview_active 时叠加干扰效果
+                        preview_frame = effected if self.effects.preview_active else self.effects.apply_flip_only(raw)
                         if self._web_preview:
                             self._preview_pool.submit(self._enqueue_preview, preview_frame.copy())
 
-                    # Drift-free timing: schedule next frame relative to fixed baseline
+                    # 无漂移定时：基于固定基准调度下一帧
                     sleep_time = next_frame_time - time.monotonic()
                     if sleep_time > 0:
                         time.sleep(sleep_time)
                     elif sleep_time < -frame_interval * 2:
-                        # Fallen >2 frames behind (e.g. heavy CV); reset rather than burst
+                        # 落后超过2帧（如 CV 处理耗时），重置基准
                         next_frame_time = time.monotonic()
                     next_frame_time += frame_interval
 
             finally:
                 cap.release()
                 if _keep_ffmpeg and self.state.streaming and not self._stop_event.is_set():
-                    # Bridge transition with a few black frames (no stream disconnect)
+                    # 过渡时插入几帧黑帧，避免流断连
                     _black = np.zeros((self._out_height, self._out_width, 3), dtype=np.uint8).tobytes()
                     for _ in range(3):
                         try:
@@ -549,7 +600,7 @@ class VideoStreamer:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-            # Fresh write queue + dedicated non-blocking writer thread
+            # 新建写入队列 + 专用非阻塞写入线程
             self._ffmpeg_write_queue = queue.Queue(maxsize=4)
             t = threading.Thread(target=self._writer_loop, args=(proc,),
                                  daemon=True, name="vid-ffmpeg-wr")

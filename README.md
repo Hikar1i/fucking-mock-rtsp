@@ -54,9 +54,12 @@
   - 高斯噪声 / 椒盐噪声
   - 高斯模糊 / 运动模糊
   - 随机色块遮挡
-  - 亮度/对比度调节
-  - 色相偏移/饱和度调节
+  - 亮度/对比度调节（合并为一个开关）
+  - 马赛克（块大小 + 模糊程度）
+  - 颜色干扰（色相偏移 / 饱和度 / 色温 / 明度偏置 / 反相）
+  - 纯色蒙版（颜色 + 明度 + 透明度）
   - 全黑画面
+  - 摄像头镜像纠正（水平翻转，默认开启，不受干扰开关影响）
 - **IP 白名单访问控制**：Web UI 和 RTSP 流均可限制允许访问的 IP 地址
 - **跨平台**：Windows（libx264 / h264_nvenc） 与 Linux（同）均可运行
 - **GPU 加速**：启动时自动检测 NVIDIA GPU，效果处理自动切换至 GPU 路径（CuPy / PyTorch CUDA），无 GPU 时无缝降级至 CPU
@@ -223,13 +226,14 @@ ffplay rtsp://192.168.3.168:8554/video
 
 | 效果 | 关键参数 |
 |------|---------|
-| Black Screen | — 全黑画面，优先级最高 |
-| Noise | Gaussian Sigma（高斯噪声强度）、S&P Probability（椒盐概率） |
-| Blur | 类型（Gaussian / Motion）、Kernel Size、运动角度/长度 |
-| Occlusion | 色块数量、最大尺寸、颜色、刷新间隔 |
-| Brightness | 亮度偏移（-100 ~ +100） |
-| Contrast | 对比度倍率（0.3 ~ 3.0） |
-| Color | 色相偏移（-180 ~ +180）、饱和度（0.0 ~ 2.0） |
+| 全黑画面 | — 优先级最高 |
+| 噪点 | 高斯噪声强度（sigma）、椒盐噪声概率（%） |
+| 模糊 | 类型（高斯 / 运动）、强度（kernel）、运动角度/长度 |
+| 遮挡块 | 色块数量、最大尺寸、颜色（黑/白/灰）、刷新间隔 |
+| 亮度/对比度 | 亮度偏移（-100 ~ +100）、对比度倍率（0.1 ~ 5.0）；合并为一个开关 |
+| 马赛克 | 块大小（2 ~ 64 px）、模糊程度（0 ~ 15） |
+| 颜色干扰 | 色相（±180°）、饱和度倍率、色温（冷暖）、明度偏置、反相 |
+| 纯色蒙版 | 颜色（色相滑条）、明度、透明度 |
 
 ---
 
@@ -369,14 +373,29 @@ encoding:
   "occlusion_colors": ["black"],
   "occlusion_refresh_sec": 2.0,
   "brightness_enabled": false,
-  "brightness_value": 0.0,
+  "brightness_value": 0,
   "contrast_enabled": false,
   "contrast_value": 1.0,
   "color_enabled": false,
   "color_hue_shift": 0.0,
-  "color_saturation": 1.0
+  "color_saturation": 1.0,
+  "color_temperature": 0.0,
+  "color_brightness_bias": 0.5,
+  "color_invert": false,
+  "mosaic_enabled": false,
+  "mosaic_block_size": 16,
+  "mosaic_blur_radius": 0,
+  "overlay_enabled": false,
+  "overlay_r": 0,
+  "overlay_g": 0,
+  "overlay_b": 0,
+  "overlay_opacity": 0.5,
+  "flip_h": false
 }
 ```
+
+> **说明**：亮度（`brightness_enabled`）和对比度（`contrast_enabled`）在 Web UI 中合并为一个开关（两个字段同时切换）；API 仍可独立控制。
+> `flip_h` 独立于干扰总开关，始终影响预览和 RTSP 画面；摄像头默认开启。
 
 ---
 
