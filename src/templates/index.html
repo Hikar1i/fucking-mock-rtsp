@@ -14,7 +14,7 @@ body {
   min-height: 100vh;
   padding: 18px 0 40px;
 }
-.page-wrap { width: 95%; max-width: none; margin: 0 auto; }
+.page-wrap { width: 95%; max-width: 1440px; margin: 0 auto; }
 h1 {
   font-size: 1.35rem; font-weight: 700; color: #1e293b;
   letter-spacing: 0.04em; margin-bottom: 18px;
@@ -24,8 +24,7 @@ h1 .dot { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; di
 h1 .dot.off { background: #ef4444; }
 h1 .h1-spacer { flex: 1; min-width: 0; }
 
-.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
-@media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
+.grid { display: flex; flex-direction: column; gap: 18px; }
 
 /* ── card ── */
 .card { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.06); overflow: hidden; display: flex; flex-direction: column; }
@@ -137,6 +136,15 @@ select {
 
 /* ── section divider ── */
 .section-sep { height: 1px; background: #e2e8f0; margin: 4px 0; }
+
+/* ── 卡片左右分栏（预览区 / 干扰效果区） ── */
+.card-split { display: flex; align-items: stretch; }
+.card-left  { flex: 1; min-width: 0; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; }
+.card-right { flex: 1; min-width: 0; padding: 12px 14px; display: flex; flex-direction: column; }
+@media (max-width: 960px) {
+  .card-split { flex-direction: column; }
+  .card-left  { border-right: none; border-bottom: 1px solid #e2e8f0; }
+}
 
 /* ── effect panel ── */
 .effect-panel {
@@ -358,6 +366,8 @@ input[type="range"].bright-range::-moz-range-thumb {
     <span class="badge" id="wcam-badge">...</span>
   </div>
 <div class="card-body">
+<div class="card-split">
+<div class="card-left">
   <!-- RTSP URL bar -->
   <div class="rtsp-bar">
     <span class="rtsp-label">RTSP</span>
@@ -416,8 +426,9 @@ input[type="range"].bright-range::-moz-range-thumb {
     </div>
 
     <div class="eff-spacer"></div>
-    <div class="section-sep"></div>
-
+  </div><!-- /controls -->
+</div><!-- /card-left -->
+<div class="card-right">
     <!-- effect panel: webcam -->
     <div class="effect-panel" id="wcam-efx-panel">
       <div class="effect-panel-header">
@@ -494,7 +505,8 @@ input[type="range"].bright-range::-moz-range-thumb {
         </div>
       </div>
     </div><!-- /effect-panel -->
-  </div>
+</div><!-- /card-right -->
+</div><!-- /card-split -->
 </div><!-- /card-body -->
 </div><!-- /webcam card -->
 {% endif %}
@@ -510,6 +522,8 @@ input[type="range"].bright-range::-moz-range-thumb {
     <span class="badge" id="vid-badge">...</span>
   </div>
 <div class="card-body">
+<div class="card-split">
+<div class="card-left">
   <!-- RTSP URL bar -->
   <div class="rtsp-bar">
     <span class="rtsp-label">RTSP</span>
@@ -575,8 +589,10 @@ input[type="range"].bright-range::-moz-range-thumb {
       <button class="btn-toggle" id="vid-loop-list"   title="列表循环"   onclick="toggleLoop('playlist')">🔁</button>
     </div>
 
-    <div class="section-sep"></div>
-
+    <div class="eff-spacer"></div>
+  </div><!-- /controls -->
+</div><!-- /card-left -->
+<div class="card-right">
     <!-- effect panel: video -->
     <div class="effect-panel" id="vid-efx-panel">
       <div class="effect-panel-header">
@@ -653,7 +669,8 @@ input[type="range"].bright-range::-moz-range-thumb {
         </div>
       </div>
     </div><!-- /effect-panel -->
-  </div>
+</div><!-- /card-right -->
+</div><!-- /card-split -->
 </div><!-- /card-body -->
 </div><!-- /video card -->
 {% endif %}
@@ -669,6 +686,8 @@ input[type="range"].bright-range::-moz-range-thumb {
     <span class="badge badge-yellow" id="pxy-badge">连接中</span>
   </div>
 <div class="card-body">
+<div class="card-split">
+<div class="card-left">
   <!-- RTSP output URL bar -->
   <div class="rtsp-bar">
     <span class="rtsp-label">RTSP</span>
@@ -717,8 +736,10 @@ input[type="range"].bright-range::-moz-range-thumb {
       <span class="badge badge-yellow" id="pxy-conn-badge">连接中</span>
     </div>
 
-    <div class="section-sep"></div>
-
+    <div class="eff-spacer"></div>
+  </div><!-- /controls -->
+</div><!-- /card-left -->
+<div class="card-right">
     <!-- effect panel: proxy -->
     <div class="effect-panel" id="pxy-efx-panel">
       <div class="effect-panel-header">
@@ -795,7 +816,8 @@ input[type="range"].bright-range::-moz-range-thumb {
         </div>
       </div>
     </div><!-- /effect-panel -->
-  </div>
+</div><!-- /card-right -->
+</div><!-- /card-split -->
 </div><!-- /card-body -->
 </div><!-- /proxy card -->
 {% endif %}
